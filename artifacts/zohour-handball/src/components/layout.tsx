@@ -92,6 +92,15 @@ export function Layout({
       <main className="flex-1 container max-w-5xl mx-auto px-4 py-6 flex flex-col">
         {children}
       </main>
+
+      <footer className="w-full py-3 text-center pointer-events-none select-none">
+        <span
+          className="text-xs sm:text-sm text-foreground/80 tracking-wide"
+          style={{ fontFamily: '"Dancing Script", "Pacifico", "Segoe Script", cursive' }}
+        >
+          made by seif kamel
+        </span>
+      </footer>
     </div>
   );
 }

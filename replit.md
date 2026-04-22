@@ -9,8 +9,8 @@
 
 - **Frontend**: React 18 + Vite + Tailwind CSS + shadcn/ui
 - **Backend**: Firebase (Firestore, Auth, FCM)
-- **الإشعارات**: Firebase Cloud Functions (`functions/index.js`) — بدون سيرفر خاص
-- **النشر**: Netlify (frontend) + Firebase (functions)
+- **الإشعارات**: تُرسَل مباشرة من المتصفح (Client-side) عبر FCM HTTP v1 API — يعمل على الخطة المجانية (Spark) بدون Cloud Functions
+- **النشر**: Netlify (frontend فقط)
 - **رفع الصور**: Cloudinary
 
 ## مجموعات Firestore
@@ -31,7 +31,7 @@
 - **لوحة المدرب**: تقييم اللاعبين مع حضور/غياب inline، تأمين التقييم بعد الحفظ مع زر تعديل، رؤية مشتركة بين المدربين
 - **لوحة اللاعب**: عرض التقييمات والحضور للجلسة الحالية فقط
 - **تاريخ الجلسة**: يُحدَّد من المدرب ويُحفَظ في Firestore (`settings/current`) ليراه الجميع
-- **الإشعارات**: عبر Firebase Cloud Functions — المدرب يكتب في `notificationQueue` والـ Function تبعت FCM
+- **الإشعارات**: متصفح المدرب يوقّع JWT بـ Service Account المضمّن داخل الـ bundle ويستدعي FCM v1 API مباشرة (`src/lib/client-push.ts`). الـ Service Worker (`firebase-messaging-sw.js`) بيعرض الإشعار وبيفتح صفحة اللاعب عند الضغط
 - **تغيير الصورة**: اضغط على الصورة في أي وقت
 
 ## كيفية النشر على Netlify
@@ -43,23 +43,12 @@
 
 أو استخدم `netlify.toml` الموجود في الـ root مباشرة.
 
-## كيفية نشر Firebase Cloud Functions (الإشعارات)
+## الإشعارات (الخطة المجانية)
 
-```bash
-# ثبّت Firebase CLI
-npm install -g firebase-tools
-
-# سجّل دخولك
-firebase login
-
-# ثبّت dependencies الـ functions
-cd functions && npm install && cd ..
-
-# ادفع الـ functions
-firebase deploy --only functions
-```
-
-**ملاحظة**: يتطلب Firebase Blaze plan (pay-as-you-go).
+- لا تحتاج Firebase Functions ولا أي سيرفر.
+- الـ Service Account JSON موجود في `artifacts/zohour-handball/src/lib/firebase-service-account.json` ويُحمَّل ضمن الـ bundle.
+- متصفح المدرب يولّد OAuth token من الـ SA ويرسل الـ FCM مباشرة عبر HTTP v1 API.
+- ⚠️ تحذير أمني: تضمين Service Account في الـ frontend يعطي أي زائر صلاحيات كاملة على Firebase. مقبول لتطبيق فريق صغير خاص فقط.
 
 ## كلمة سر المدرب
 

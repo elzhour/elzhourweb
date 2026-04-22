@@ -204,11 +204,12 @@ export default function CoachDashboard() {
         toast.success("تم تحديث التقييم");
       } else {
         await addDoc(collection(db, "ratings"), { ...payload, createdAt: serverTimestamp() });
-        // Send FCM via Cloud Function (no server needed)
+        // Send FCM directly from the client (no Cloud Function needed)
         sendRatingNotification({
-          title: `تقييم جديد من ${profile?.name || "المدرب"}`,
-          body: `بدني ${data.physical} · مهاري ${data.skill} · عقلي ${data.mental} · عام ${data.general}`,
+          title: "تقييم جديد",
+          body: `أضاف كابتن ${profile?.name || "المدرب"} تقييم جديد لك`,
           recipientUid: playerId,
+          url: "/player",
         }).catch(() => {});
         toast.success("تم حفظ التقييم");
       }

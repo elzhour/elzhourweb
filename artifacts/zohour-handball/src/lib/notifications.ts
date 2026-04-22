@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { doc, setDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { getToken, onMessage } from "firebase/messaging";
 import { db, messaging, VAPID_KEY } from "./firebase";
+import { sendPushToUser } from "./client-push";
 
 /* ── FCM Token Registration ────────────────────────────────── */
 
@@ -94,9 +95,10 @@ function playPing() {
   } catch {}
 }
 
-/* ── Send notification via Firestore → Cloud Function ──────── */
-// No server required. Writing to "notificationQueue" triggers a
-// Firebase Cloud Function that sends the FCM push notification.
+/* ── Send notification directly from client (FCM HTTP v1 API) ─
+   No Cloud Function / paid plan required. The coach's browser signs
+   a JWT with the embedded service account, exchanges it for an OAuth
+   token, and POSTs the message to FCM. */
 
 export async function sendRatingNotification(payload: {
   title: string;
@@ -105,13 +107,14 @@ export async function sendRatingNotification(payload: {
   url?: string;
 }) {
   try {
-    await addDoc(collection(db, "notificationQueue"), {
-      ...payload,
-      url: payload.url || "/",
-      createdAt: serverTimestamp(),
-    });
+    await sendPushToUser(
+      payload.recipientUid,
+      payload.title,
+      payload.body,
+      payload.url || "/player",
+    );
   } catch (e) {
-    console.warn("Failed to queue notification:", e);
+    console.warn("Failed to send notification:", e);
   }
 }
 
