@@ -9,22 +9,34 @@ import serviceAccount from "./firebase-service-account.json";
 
 let cachedToken: { token: string; exp: number } | null = null;
 
-const b64url = (data: ArrayBuffer | Uint8Array | string) => {
-  const bytes =
-    typeof data === "string"
-      ? new TextEncoder().encode(data)
-      : data instanceof Uint8Array
-        ? data
-        : new Uint8Array(data);
-  let s = "";
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-  return btoa(s).replace(/=+$/g, "").replace(/\+/g, "-").replace(/\//g, "_");
-};
+/** base64url-encode bytes (no padding). Chunked to avoid stack overflow on big buffers. */
+function bytesToB64Url(bytes: Uint8Array): string {
+  const CHUNK = 0x8000;
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    bin += String.fromCharCode.apply(
+      null,
+      bytes.subarray(i, i + CHUNK) as unknown as number[],
+    );
+  }
+  return btoa(bin).replace(/=+$/g, "").replace(/\+/g, "-").replace(/\//g, "_");
+}
+const strToB64Url = (s: string) =>
+  bytesToB64Url(new TextEncoder().encode(s));
+
+/** Normalize a PEM that may contain literal "\n" sequences (e.g. when fetched
+ *  from an env var) instead of real newlines. */
+function normalizePem(raw: string): string {
+  return raw.includes("\\n") && !raw.includes("\n")
+    ? raw.replace(/\\n/g, "\n")
+    : raw;
+}
 
 async function importPrivateKey(pem: string): Promise<CryptoKey> {
-  const cleaned = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
-    .replace(/-----END PRIVATE KEY-----/g, "")
+  const normalized = normalizePem(pem);
+  const cleaned = normalized
+    .replace(/-----BEGIN [A-Z ]+-----/g, "")
+    .replace(/-----END [A-Z ]+-----/g, "")
     .replace(/\s+/g, "");
   const der = Uint8Array.from(atob(cleaned), (c) => c.charCodeAt(0));
   return crypto.subtle.importKey(
@@ -40,18 +52,25 @@ async function getAccessToken(): Promise<string> {
   if (cachedToken && Date.now() < cachedToken.exp - 60_000) {
     return cachedToken.token;
   }
-  const header = { alg: "RS256", typ: "JWT" };
+  // Including `kid` lets Google look up the right public key directly.
+  const header = {
+    alg: "RS256",
+    typ: "JWT",
+    kid: serviceAccount.private_key_id,
+  };
   const now = Math.floor(Date.now() / 1000);
   const claim = {
     iss: serviceAccount.client_email,
+    sub: serviceAccount.client_email,
     scope: "https://www.googleapis.com/auth/firebase.messaging",
     aud: "https://oauth2.googleapis.com/token",
     exp: now + 3600,
     iat: now,
   };
-  const signingInput = `${b64url(JSON.stringify(header))}.${b64url(
+  const signingInput = `${strToB64Url(JSON.stringify(header))}.${strToB64Url(
     JSON.stringify(claim),
   )}`;
+
   let key: CryptoKey;
   try {
     key = await importPrivateKey(serviceAccount.private_key);
@@ -59,21 +78,28 @@ async function getAccessToken(): Promise<string> {
     console.error("[push] importPrivateKey failed:", e);
     throw new Error("Bad service-account private key");
   }
-  const sig = await crypto.subtle.sign(
+
+  const sigBuf = await crypto.subtle.sign(
     "RSASSA-PKCS1-v1_5",
     key,
     new TextEncoder().encode(signingInput),
   );
-  const jwt = `${signingInput}.${b64url(sig)}`;
+  const jwt = `${signingInput}.${bytesToB64Url(new Uint8Array(sigBuf))}`;
+
+  const body = new URLSearchParams({
+    grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    assertion: jwt,
+  }).toString();
 
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${encodeURIComponent(jwt)}`,
+    body,
   });
   const txt = await res.text();
   if (!res.ok) {
     console.error("[push] OAuth token failed:", res.status, txt);
+    console.error("[push] JWT (debug):", jwt.slice(0, 80) + "...");
     throw new Error(`OAuth ${res.status}: ${txt.slice(0, 300)}`);
   }
   const data = JSON.parse(txt) as { access_token: string; expires_in: number };
