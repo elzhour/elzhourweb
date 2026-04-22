@@ -2,12 +2,12 @@
    - Service worker (`firebase-messaging-sw.js`) handles background messages.
    - This module registers the SW, requests permission, gets the FCM token
      using the VAPID key, and stores it on `players/{uid}.fcmToken`.
-   - Actual push delivery is performed by a Firebase Cloud Function
-     (`functions/index.js`) that listens to new docs in `ratings/`. */
+   - Actual push delivery is fired client-side from the coach's browser
+     (`src/lib/client-push.ts`) right after a rating is saved. */
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { getToken, onMessage } from "firebase/messaging";
 import { db, messaging, VAPID_KEY } from "./firebase";
 
@@ -32,31 +32,61 @@ export async function ensureMessagingSW(): Promise<ServiceWorkerRegistration | n
 
 /** Request permission, fetch FCM token, save to players/{uid}.fcmToken. */
 export async function registerPlayerForPush(uid: string): Promise<string | null> {
-  if (!messaging || typeof Notification === "undefined") return null;
-
-  const reg = await ensureMessagingSW();
-  if (!reg) return null;
-
-  if (Notification.permission === "denied") return null;
-  if (Notification.permission !== "granted") {
-    const result = await Notification.requestPermission();
-    if (result !== "granted") return null;
+  if (!messaging || typeof Notification === "undefined") {
+    console.warn("[push] messaging not supported in this browser");
+    return null;
   }
 
+  const reg = await ensureMessagingSW();
+  if (!reg) {
+    console.warn("[push] service worker registration failed");
+    return null;
+  }
+
+  if (Notification.permission === "denied") {
+    console.warn("[push] notifications permission DENIED for this site");
+    return null;
+  }
+  if (Notification.permission !== "granted") {
+    const result = await Notification.requestPermission();
+    if (result !== "granted") {
+      console.warn("[push] permission not granted:", result);
+      return null;
+    }
+  }
+
+  let token: string | null = null;
   try {
-    const token = await getToken(messaging, {
+    token = await getToken(messaging, {
       vapidKey: VAPID_KEY,
       serviceWorkerRegistration: reg,
     });
-    if (!token) return null;
-
-    await updateDoc(doc(db, "players", uid), {
-      fcmToken: token,
-      fcmTokenUpdatedAt: serverTimestamp(),
+  } catch (e) {
+    console.error("[push] getToken failed:", e);
+    toast.error("تعذّر تفعيل الإشعارات", {
+      description: "تأكد من السماح للإشعارات في المتصفح.",
     });
+    return null;
+  }
+  if (!token) {
+    console.warn("[push] empty token returned by FCM");
+    return null;
+  }
+
+  try {
+    // setDoc + merge → works whether the player doc exists or not.
+    await setDoc(
+      doc(db, "players", uid),
+      { fcmToken: token, fcmTokenUpdatedAt: serverTimestamp() },
+      { merge: true },
+    );
+    console.info("[push] FCM token saved for", uid);
     return token;
   } catch (e) {
-    console.warn("Failed to get / save FCM token:", e);
+    console.error("[push] failed to save FCM token to Firestore:", e);
+    toast.error("تعذّر حفظ مفتاح الإشعارات", {
+      description: (e as any)?.message || "خطأ في الاتصال بـ Firestore",
+    });
     return null;
   }
 }
