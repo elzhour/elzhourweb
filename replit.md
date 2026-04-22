@@ -9,8 +9,8 @@
 
 - **Frontend**: React 18 + Vite + Tailwind CSS + shadcn/ui
 - **Backend**: Firebase (Firestore, Auth, FCM)
-- **الإشعارات**: Web Push عبر FCM — Cloud Function بتشتغل لما يتضاف rating جديد وتبعت push للاعب (شغّال حتى لو المتصفح مقفول)
-- **النشر**: Netlify (frontend) + Firebase Functions (إشعارات — Blaze plan)
+- **الإشعارات**: Web Push عبر FCM — متصفح المدرب يبعت الـ push مباشرة عبر FCM v1 REST API (بدون Cloud Functions، خطة Spark المجانية)
+- **النشر**: Netlify (frontend فقط)
 - **رفع الصور**: Cloudinary
 
 ## مجموعات Firestore
@@ -31,7 +31,7 @@
 - **لوحة المدرب**: تقييم اللاعبين مع حضور/غياب inline، تأمين التقييم بعد الحفظ مع زر تعديل، رؤية مشتركة بين المدربين
 - **لوحة اللاعب**: عرض التقييمات والحضور للجلسة الحالية فقط
 - **تاريخ الجلسة**: يُحدَّد من المدرب ويُحفَظ في Firestore (`settings/current`) ليراه الجميع
-- **الإشعارات**: عند حفظ تقييم في `ratings/`، Cloud Function (`functions/index.js`) بتقرا `players/{playerId}.fcmToken` وتبعت Web Push عبر FCM. الـ Service Worker (`firebase-messaging-sw.js`) بيعرضه حتى لو التبويب أو المتصفح مقفول
+- **الإشعارات**: عند حفظ تقييم، متصفح المدرب يستدعي `sendRatingPushToPlayer` (`src/lib/client-push.ts`) اللي بتقرا `players/{playerId}.fcmToken` وتبعت Web Push عبر FCM v1 API. الـ Service Worker (`firebase-messaging-sw.js`) بيعرضه حتى لو التبويب أو المتصفح مقفول
 - **تغيير الصورة**: اضغط على الصورة في أي وقت
 
 ## كيفية النشر على Netlify
@@ -43,28 +43,19 @@
 
 أو استخدم `netlify.toml` الموجود في الـ root مباشرة.
 
-## الإشعارات (Firebase Cloud Messaging)
+## الإشعارات (FCM Client-Side — خطة مجانية)
 
 ### إزاي بتشتغل
-1. أول ما اللاعب يدخل لوحته، التطبيق بيطلب إذن الإشعارات.
-2. لو وافق، بيتسحب FCM token من جوجل ويتخزن في `players/{uid}.fcmToken`.
-3. لما المدرب يحفظ تقييم جديد، Cloud Function (`sendRatingNotification`) بتشتغل تلقائياً، تقرا الـ token، وتبعت push notification.
-4. Service Worker (`firebase-messaging-sw.js`) بيعرض الإشعار في الخلفية حتى لو التبويب/المتصفح مقفول.
+1. أول ما اللاعب يدخل لوحته، التطبيق بيطلب إذن الإشعارات ويسجّل Service Worker.
+2. لو وافق، بيتسحب FCM token من جوجل بالـ VAPID key، ويتخزن في `players/{uid}.fcmToken`.
+3. لما المدرب يحفظ تقييم جديد، متصفحه بيوقّع JWT بـ Service Account المضمّن، يأخذ OAuth token، ويبعت رسالة POST لـ FCM v1 API مباشرة.
+4. Service Worker (`firebase-messaging-sw.js`) بيعرض الإشعار حتى لو التبويب/المتصفح مقفول.
 
-### نشر الـ Cloud Function (مرة واحدة)
-> ⚠️ يتطلب Firebase **Blaze plan** (pay-as-you-go). الاستخدام المتوقع للفريق ده مجاناً 100% لأن حدود Spark كافية، بس Firebase بتطلب Blaze عشان تنشر functions أصلاً.
+### بدون Cloud Functions
+مفيش `firebase deploy` ولا `functions/`. كل المنطق في الـ frontend.
 
-```bash
-npm install -g firebase-tools
-firebase login
-cd functions && npm install && cd ..
-firebase deploy --only functions
-```
-
-ملفات الـ Firebase:
-- `functions/index.js` — الـ Cloud Function اللي بتبعت الإشعار
-- `firebase.json` — تهيئة المشروع
-- `.firebaserc` — اسم المشروع
+### ⚠️ تحذير أمني
+ملف `src/lib/firebase-service-account.json` متضمّن في الـ bundle العام. أي حد يفتح الموقع يقدر يستخرجه ويحصل على صلاحيات Firebase Admin كاملة. مقبول لتطبيق فريق صغير خاص فقط — ما تنشرش الرابط في أماكن عامة.
 
 ## كلمة سر المدرب
 

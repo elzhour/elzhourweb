@@ -23,10 +23,9 @@ messaging.onBackgroundMessage((payload) => {
   const body = notif.body || data.body || "";
   self.registration.showNotification(title, {
     body,
-    icon: data.icon || "/logo.jpg",
+    icon: "/logo.jpg",
     badge: "/logo.jpg",
     tag: data.tag || "zohour-rating",
-    data: { url: data.url || "/player" },
     lang: "ar",
     dir: "rtl",
     vibrate: [120, 60, 120],
@@ -34,10 +33,10 @@ messaging.onBackgroundMessage((payload) => {
   });
 });
 
-// Click → focus existing tab or open a new one at the target URL.
+// Click → focus existing tab or open the player dashboard in a new one.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.url) || "/player";
+  const url = "/player";
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })

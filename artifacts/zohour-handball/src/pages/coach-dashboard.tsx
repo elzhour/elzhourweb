@@ -22,6 +22,7 @@ import {
   CheckCircle2, Edit3,
 } from "lucide-react";
 import { toast } from "sonner";
+import { sendRatingPushToPlayer } from "@/lib/client-push";
 import { BottomTabs } from "@/components/bottom-tabs";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { UserAvatar } from "@/components/user-avatar";
@@ -200,10 +201,13 @@ export default function CoachDashboard() {
         toast.success("تم تحديث التقييم");
       } else {
         await addDoc(collection(db, "ratings"), { ...payload, createdAt: serverTimestamp() });
-        // The Firebase Cloud Function `sendRatingNotification` listens to
-        // ratings/{ratingId} onCreate and pushes the FCM notification to
-        // the player automatically — no client-side push code needed here.
         toast.success("تم حفظ التقييم");
+        // Fire FCM push from the client (no Cloud Function needed).
+        sendRatingPushToPlayer({
+          playerId,
+          playerName,
+          coachName: profile?.name || "المدرب",
+        }).catch((e) => console.warn("Push send error:", e));
       }
       setExpandedEval(null);
       setEditMode((p) => { const s = new Set(p); s.delete(playerId); return s; });

@@ -93,9 +93,9 @@ export function Layout({
         {children}
       </main>
 
-      <footer className="w-full py-3 text-center pointer-events-none select-none">
+      <footer className="w-full py-3 flex justify-center select-none">
         <span
-          className="text-xs sm:text-sm text-foreground/80 tracking-wide"
+          className="inline-flex items-center px-3 py-1 rounded-full border border-primary/30 bg-primary/5 text-primary text-xs sm:text-sm tracking-wide shadow-sm"
           style={{ fontFamily: '"Dancing Script", "Pacifico", "Segoe Script", cursive' }}
         >
           made by seif kamel
