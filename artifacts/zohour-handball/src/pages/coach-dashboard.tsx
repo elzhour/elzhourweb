@@ -8,6 +8,8 @@ import {
   addDoc,
   serverTimestamp,
   FirestoreError,
+  deleteDoc,
+  doc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
@@ -25,6 +27,7 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 import { format } from "date-fns";
 import {
@@ -232,6 +235,20 @@ export default function CoachDashboard() {
       toast.error("خطأ", { description: error.message });
     } finally {
       setEvalSaving(null);
+    }
+  };
+
+  const deleteMessage = async (messageId: string) => {
+    if (!user) return;
+    const path =
+      chatType === "team"
+        ? "chats/team/messages"
+        : `chats/coach_${user.uid}_player_${chatType}/messages`;
+    try {
+      await deleteDoc(doc(db, path, messageId));
+      toast.success("تم حذف الرسالة");
+    } catch (e: any) {
+      toast.error("تعذّر حذف الرسالة", { description: e.message });
     }
   };
 
@@ -630,7 +647,9 @@ export default function CoachDashboard() {
                 <Chat
                   messages={chatMessages}
                   currentUserId={user?.uid || ""}
+                  currentUserRole="coach"
                   onSendMessage={sendMessage}
+                  onDeleteMessage={deleteMessage}
                 />
               </div>
             </div>
@@ -712,9 +731,13 @@ export default function CoachDashboard() {
                             fontSize: "12px",
                           }}
                         />
+                        <Legend
+                          wrapperStyle={{ fontSize: "11px", paddingTop: "4px" }}
+                          iconType="circle"
+                        />
                         <Line type="monotone" dataKey="physical" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ r: 3 }} name="بدني" />
                         <Line type="monotone" dataKey="skill" stroke="#1e88e5" strokeWidth={2.5} dot={{ r: 3 }} name="مهاري" />
-                        <Line type="monotone" dataKey="mental" stroke="#7b1fa2" strokeWidth={2.5} dot={{ r: 3 }} name="عقلي" />
+                        <Line type="monotone" dataKey="mental" stroke="#7b1fa2" strokeWidth={3} dot={{ r: 4, fill: "#7b1fa2" }} activeDot={{ r: 6 }} name="عقلي" />
                         <Line type="monotone" dataKey="general" stroke="hsl(var(--muted-foreground))" strokeWidth={2.5} dot={{ r: 3 }} name="عام" />
                       </LineChart>
                     </ResponsiveContainer>

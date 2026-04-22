@@ -27,6 +27,7 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
+  Legend,
 } from "recharts";
 import {
   Activity,
@@ -258,9 +259,13 @@ export default function PlayerDashboard() {
                         fontSize: "12px",
                       }}
                     />
+                    <Legend
+                      wrapperStyle={{ fontSize: "11px", paddingTop: "4px" }}
+                      iconType="circle"
+                    />
                     <Line type="monotone" dataKey="physical" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ r: 3 }} name="بدني" />
                     <Line type="monotone" dataKey="skill" stroke="#1e88e5" strokeWidth={2.5} dot={{ r: 3 }} name="مهاري" />
-                    <Line type="monotone" dataKey="mental" stroke="#7b1fa2" strokeWidth={2.5} dot={{ r: 3 }} name="عقلي" />
+                    <Line type="monotone" dataKey="mental" stroke="#7b1fa2" strokeWidth={3} dot={{ r: 4, fill: "#7b1fa2" }} activeDot={{ r: 6 }} name="عقلي" />
                     <Line type="monotone" dataKey="general" stroke="hsl(var(--muted-foreground))" strokeWidth={2.5} dot={{ r: 3 }} name="عام" />
                   </LineChart>
                 </ResponsiveContainer>
@@ -350,6 +355,7 @@ export default function PlayerDashboard() {
               <Chat
                 messages={messages}
                 currentUserId={user?.uid || ""}
+                currentUserRole="player"
                 onSendMessage={sendMessage}
               />
             </div>

@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
-import { Send, Reply, X, ChevronDown } from "lucide-react";
+import { Send, Reply, X, ChevronDown, Trash2 } from "lucide-react";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { useEffect, useRef, useState, useLayoutEffect } from "react";
@@ -24,11 +24,13 @@ export interface ChatMessage {
 interface ChatProps {
   messages: ChatMessage[];
   currentUserId: string;
+  currentUserRole?: "coach" | "player";
   onSendMessage: (text: string, replyTo?: ChatMessage["replyTo"]) => Promise<void>;
+  onDeleteMessage?: (id: string) => Promise<void>;
   title?: string;
 }
 
-export function Chat({ messages, currentUserId, onSendMessage, title }: ChatProps) {
+export function Chat({ messages, currentUserId, currentUserRole, onSendMessage, onDeleteMessage, title }: ChatProps) {
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [showJumpButton, setShowJumpButton] = useState(false);
@@ -113,34 +115,30 @@ export function Chat({ messages, currentUserId, onSendMessage, title }: ChatProp
   };
 
   return (
-    <div className="flex flex-col h-full bg-background rounded-2xl overflow-hidden border border-border relative">
-      {/* Messages Area with logo background */}
+    <div
+      className="flex flex-col h-full rounded-2xl overflow-hidden border border-border relative"
+      style={{ backgroundColor: "hsl(var(--muted) / 0.3)" }}
+    >
+      {/* Fixed watermark logo (does NOT scroll with messages) */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 z-0 bg-no-repeat bg-center"
+        style={{
+          backgroundImage: "url(/logo.jpg)",
+          backgroundSize: "min(280px, 60%)",
+          opacity: 0.06,
+          filter: "grayscale(100%)",
+        }}
+      />
+
+      {/* Messages scroll area (transparent so the fixed watermark shows through) */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 space-y-2 relative"
-        style={{
-          scrollBehavior: "auto",
-          backgroundColor: "hsl(var(--muted) / 0.3)",
-        }}
+        className="flex-1 overflow-y-auto p-4 space-y-2 relative z-10"
+        style={{ scrollBehavior: "auto" }}
       >
-        {/* Watermark logo background */}
-        <div
-          className="pointer-events-none fixed inset-0 z-0"
-          style={{ display: "none" }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 z-0 bg-no-repeat bg-center"
-          style={{
-            backgroundImage: "url(/logo.jpg)",
-            backgroundSize: "min(280px, 60%)",
-            opacity: 0.06,
-            filter: "grayscale(100%)",
-          }}
-        />
-
-        <div className="relative z-10 space-y-2">
+        <div className="space-y-2">
           {messages.length === 0 && (
             <div className="h-40 flex items-center justify-center text-xs text-muted-foreground">
               ابدأ المحادثة الآن
@@ -192,17 +190,39 @@ export function Chat({ messages, currentUserId, onSendMessage, title }: ChatProp
                   )}
 
                   <div className="flex items-center gap-1.5">
-                    {/* Reply button (visible on hover) */}
-                    <button
-                      type="button"
-                      onClick={() => setReplyTo(msg)}
-                      className={`opacity-0 group-hover:opacity-100 transition-opacity w-7 h-7 rounded-full bg-background/90 border border-border flex items-center justify-center text-muted-foreground hover:text-primary shrink-0 ${
+                    {/* Action buttons: Reply (everyone) + Delete (coach only) */}
+                    <div
+                      className={`flex items-center gap-1 shrink-0 ${
                         isMe ? "" : "order-2"
                       }`}
-                      aria-label="رد"
                     >
-                      <Reply className="w-3.5 h-3.5" />
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setReplyTo(msg)}
+                        className="w-7 h-7 rounded-full bg-background/95 border border-border flex items-center justify-center text-muted-foreground hover:text-primary active:scale-90 transition-all shadow-sm"
+                        aria-label="رد"
+                      >
+                        <Reply className="w-3.5 h-3.5" />
+                      </button>
+                      {currentUserRole === "coach" && onDeleteMessage && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (
+                              window.confirm(
+                                "هل تريد حذف هذه الرسالة نهائياً؟",
+                              )
+                            ) {
+                              await onDeleteMessage(msg.id);
+                            }
+                          }}
+                          className="w-7 h-7 rounded-full bg-background/95 border border-border flex items-center justify-center text-muted-foreground hover:text-red-600 active:scale-90 transition-all shadow-sm"
+                          aria-label="حذف"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
 
                     <div
                       ref={(el) => {
