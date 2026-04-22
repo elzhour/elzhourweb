@@ -52,7 +52,13 @@ async function getAccessToken(): Promise<string> {
   const signingInput = `${b64url(JSON.stringify(header))}.${b64url(
     JSON.stringify(claim),
   )}`;
-  const key = await importPrivateKey(serviceAccount.private_key);
+  let key: CryptoKey;
+  try {
+    key = await importPrivateKey(serviceAccount.private_key);
+  } catch (e) {
+    console.error("[push] importPrivateKey failed:", e);
+    throw new Error("Bad service-account private key");
+  }
   const sig = await crypto.subtle.sign(
     "RSASSA-PKCS1-v1_5",
     key,
@@ -63,10 +69,14 @@ async function getAccessToken(): Promise<string> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${encodeURIComponent(jwt)}`,
   });
-  if (!res.ok) throw new Error("OAuth token failed: " + (await res.text()));
-  const data = (await res.json()) as { access_token: string; expires_in: number };
+  const txt = await res.text();
+  if (!res.ok) {
+    console.error("[push] OAuth token failed:", res.status, txt);
+    throw new Error(`OAuth ${res.status}: ${txt.slice(0, 300)}`);
+  }
+  const data = JSON.parse(txt) as { access_token: string; expires_in: number };
   cachedToken = {
     token: data.access_token,
     exp: Date.now() + data.expires_in * 1000,
@@ -91,9 +101,9 @@ export async function sendRatingPushToPlayer(opts: {
   let accessToken: string;
   try {
     accessToken = await getAccessToken();
-  } catch (e) {
+  } catch (e: any) {
     console.warn("FCM access token failed:", e);
-    return { ok: false, reason: "auth" };
+    return { ok: false, reason: "auth: " + (e?.message || String(e)) };
   }
 
   const projectId = serviceAccount.project_id;

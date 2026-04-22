@@ -12,12 +12,9 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
 } from "recharts";
-import { Activity, Dumbbell, Brain, Sparkles, BarChart3, CalendarCheck, List, Bell } from "lucide-react";
+import { Activity, Dumbbell, Brain, Sparkles, BarChart3, CalendarCheck, List } from "lucide-react";
 import { format } from "date-fns";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { registerPlayerForPush, setupForegroundListener } from "@/lib/notifications";
-import { sendRatingPushToPlayer } from "@/lib/client-push";
 import { BottomTabs } from "@/components/bottom-tabs";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { UserAvatar } from "@/components/user-avatar";
@@ -109,37 +106,6 @@ export default function PlayerDashboard() {
   const presentCount = Object.values(sessionAttendance).filter((s) => s === "present").length;
   const absentCount = Object.values(sessionAttendance).filter((s) => s === "absent").length;
 
-  const [testing, setTesting] = useState(false);
-  const handleTestNotification = async () => {
-    if (!user) return;
-    setTesting(true);
-    try {
-      const token = await registerPlayerForPush(user.uid);
-      if (!token) {
-        toast.error("لم يتم تفعيل الإشعارات", {
-          description: "تأكد من السماح للإشعارات في إعدادات المتصفح.",
-        });
-        return;
-      }
-      const res = await sendRatingPushToPlayer({
-        playerId: user.uid,
-        playerName: playerData?.firstName || "لاعب",
-        coachName: "تجربة",
-      });
-      if (res.ok) {
-        toast.success("تم إرسال إشعار التجربة", {
-          description: "صغّر المتصفح لمدة ثانية للتأكد إنه يظهر في الخلفية.",
-        });
-      } else {
-        toast.error("فشل إرسال الإشعار", { description: res.reason });
-      }
-    } catch (e: any) {
-      toast.error("خطأ", { description: e?.message });
-    } finally {
-      setTesting(false);
-    }
-  };
-
   return (
     <Layout withBottomTabs>
       {/* Profile Header */}
@@ -153,16 +119,6 @@ export default function PlayerDashboard() {
           <h2 className="font-extrabold text-base truncate">{playerData?.fullName || "لاعب"}</h2>
           <p className="text-xs text-muted-foreground">اضغط على الصورة لتغييرها</p>
         </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={handleTestNotification}
-          disabled={testing}
-          className="shrink-0 gap-1.5 rounded-full border-primary/30 text-primary hover:bg-primary/10"
-        >
-          <Bell className="w-3.5 h-3.5" />
-          <span className="text-[11px] font-bold">{testing ? "..." : "تجربة"}</span>
-        </Button>
       </div>
 
       <AnimatePresence mode="wait">
