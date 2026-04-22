@@ -1,0 +1,13 @@
+[build]
+  command = "pnpm install && BASE_PATH=/ PORT=3000 pnpm --filter @workspace/zohour-handball run build"
+  publish = "artifacts/zohour-handball/dist/public"
+
+[build.environment]
+  NODE_VERSION = "20"
+  BASE_PATH = "/"
+  PORT = "3000"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

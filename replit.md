@@ -1,27 +1,72 @@
-# Workspace
+# مركز شباب الزهور - كرة يد 2010
 
-## Overview
+## نظرة عامة
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+منصة إدارة فريق كرة اليد. React/Vite frontend + Firebase backend.
+يتم التشغيل من `artifacts/zohour-handball`.
 
-## Stack
+## المكدس التقني
 
-- **Monorepo tool**: pnpm workspaces
-- **Node.js version**: 24
-- **Package manager**: pnpm
-- **TypeScript version**: 5.9
-- **API framework**: Express 5
-- **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+- **Frontend**: React 18 + Vite + Tailwind CSS + shadcn/ui
+- **Backend**: Firebase (Firestore, Auth, FCM)
+- **الإشعارات**: Firebase Cloud Functions (`functions/index.js`) — بدون سيرفر خاص
+- **النشر**: Netlify (frontend) + Firebase (functions)
+- **رفع الصور**: Cloudinary
 
-## Key Commands
+## مجموعات Firestore
 
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- `pnpm --filter @workspace/api-server run dev` — run API server locally
+| المجموعة | الاستخدام |
+|---|---|
+| `users` | بيانات المستخدم الأساسية |
+| `players` | ملفات اللاعبين |
+| `coaches` | ملفات المدربين |
+| `ratings` | تقييمات اللاعبين |
+| `attendance` | الحضور والغياب (docId: `sessionDate_playerId`) |
+| `fcmTokens` | توكنات الإشعارات |
+| `notificationQueue` | طابور الإشعارات (Cloud Function يمسحها بعد الإرسال) |
+| `settings/current` | إعدادات مشتركة (تاريخ الجلسة) |
 
-See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
+## الميزات الرئيسية
+
+- **لوحة المدرب**: تقييم اللاعبين مع حضور/غياب inline، تأمين التقييم بعد الحفظ مع زر تعديل، رؤية مشتركة بين المدربين
+- **لوحة اللاعب**: عرض التقييمات والحضور للجلسة الحالية فقط
+- **تاريخ الجلسة**: يُحدَّد من المدرب ويُحفَظ في Firestore (`settings/current`) ليراه الجميع
+- **الإشعارات**: عبر Firebase Cloud Functions — المدرب يكتب في `notificationQueue` والـ Function تبعت FCM
+- **تغيير الصورة**: اضغط على الصورة في أي وقت
+
+## كيفية النشر على Netlify
+
+1. اربط الـ repo بـ Netlify
+2. Build command: `pnpm install && BASE_PATH=/ PORT=3000 pnpm --filter @workspace/zohour-handball run build`
+3. Publish directory: `artifacts/zohour-handball/dist/public`
+4. ضع متغيرات البيئة (اختياري): `BASE_PATH=/`, `PORT=3000`
+
+أو استخدم `netlify.toml` الموجود في الـ root مباشرة.
+
+## كيفية نشر Firebase Cloud Functions (الإشعارات)
+
+```bash
+# ثبّت Firebase CLI
+npm install -g firebase-tools
+
+# سجّل دخولك
+firebase login
+
+# ثبّت dependencies الـ functions
+cd functions && npm install && cd ..
+
+# ادفع الـ functions
+firebase deploy --only functions
+```
+
+**ملاحظة**: يتطلب Firebase Blaze plan (pay-as-you-go).
+
+## كلمة سر المدرب
+
+`80168016`
+
+## تشغيل محلي
+
+```bash
+PORT=23176 BASE_PATH=/ pnpm --filter @workspace/zohour-handball run dev
+```

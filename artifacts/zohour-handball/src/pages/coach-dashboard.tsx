@@ -1,16 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  collection,
-  onSnapshot,
-  addDoc,
-  updateDoc,
-  serverTimestamp,
-  FirestoreError,
-  doc,
-  setDoc,
-  query,
-  where,
+  collection, onSnapshot, addDoc, updateDoc, serverTimestamp,
+  FirestoreError, doc, setDoc, query, where,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
@@ -26,15 +18,17 @@ import {
 import { format } from "date-fns";
 import {
   Users, ChevronDown, ChevronUp, Activity, Dumbbell, Brain, Sparkles,
-  ClipboardList, CalendarCheck, List, Save, Pencil, Check, X, CheckCircle2, Edit3,
+  ClipboardList, CalendarCheck, List, Save, Pencil, Check, X,
+  CheckCircle2, Edit3,
 } from "lucide-react";
 import { toast } from "sonner";
-import { registerFcmForUser, broadcastPush, setupForegroundListener } from "@/lib/notifications";
+import { registerFcmForUser, sendRatingNotification, setupForegroundListener } from "@/lib/notifications";
 import { BottomTabs } from "@/components/bottom-tabs";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { UserAvatar } from "@/components/user-avatar";
 
 const ARABIC_DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const SETTINGS_DOC = "settings/current";
 
 function todayStr() { return format(new Date(), "yyyy-MM-dd"); }
 function getArabicDay(d: string) {
@@ -62,9 +56,9 @@ export default function CoachDashboard() {
   const [expandedEval, setExpandedEval] = useState<string | null>(null);
   const [evalForms, setEvalForms] = useState<Record<string, any>>({});
   const [evalSaving, setEvalSaving] = useState<string | null>(null);
-  // editMode: which player is in edit mode (overriding the lock)
   const [editMode, setEditMode] = useState<Set<string>>(new Set());
 
+  // Shared session date (Firestore + localStorage cache)
   const [sessionDate, setSessionDate] = useState<string>(
     () => localStorage.getItem("zohour_session_date") || todayStr(),
   );
@@ -73,11 +67,22 @@ export default function CoachDashboard() {
   const [attendanceSaving, setAttendanceSaving] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) {
-      registerFcmForUser(user.uid, "coach");
-      setupForegroundListener();
-    }
+    if (user) { registerFcmForUser(user.uid, "coach"); setupForegroundListener(); }
   }, [user]);
+
+  // Sync session date from Firestore
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, SETTINGS_DOC), (snap) => {
+      if (snap.exists()) {
+        const d = snap.data()?.sessionDate;
+        if (d && d !== sessionDate) {
+          setSessionDate(d);
+          localStorage.setItem("zohour_session_date", d);
+        }
+      }
+    });
+    return () => unsub();
+  }, []); // eslint-disable-line
 
   useEffect(() => {
     const u1 = onSnapshot(collection(db, "players"),
@@ -97,17 +102,23 @@ export default function CoachDashboard() {
     const q = query(collection(db, "attendance"), where("sessionDate", "==", sessionDate));
     return onSnapshot(q, (s) => {
       const map: Record<string, AttendanceStatus> = {};
-      s.docs.forEach((d) => { const r = d.data(); map[r.playerId] = r.status as AttendanceStatus; });
+      s.docs.forEach((d) => { const r = d.data(); map[r.playerId] = r.status; });
       setAttendance(map);
     }, (e: FirestoreError) => console.warn(e.code));
   }, [sessionDate]);
 
-  const saveSessionDate = () => {
+  const saveSessionDate = async () => {
     if (!tempDate) return;
     setSessionDate(tempDate);
     localStorage.setItem("zohour_session_date", tempDate);
     setEditingDate(false);
-    toast.success("تم حفظ تاريخ الجلسة");
+    try {
+      // Write to Firestore so player dashboard picks it up
+      await setDoc(doc(db, SETTINGS_DOC), { sessionDate: tempDate }, { merge: true });
+      toast.success("تم حفظ تاريخ الجلسة");
+    } catch (e: any) {
+      toast.error("خطأ في حفظ التاريخ", { description: e.message });
+    }
   };
 
   const markAttendance = async (player: any, status: AttendanceStatus) => {
@@ -129,21 +140,19 @@ export default function CoachDashboard() {
     }
   };
 
-  const getPlayerRatings = (playerId: string) => ratings.filter((r) => r.playerId === playerId);
-  const getSessionRating = (playerId: string) =>
-    ratings.find((r) => r.playerId === playerId && r.date === sessionDate) || null;
+  const getPlayerRatings = (id: string) => ratings.filter((r) => r.playerId === id);
+  const getSessionRating = (id: string) => ratings.find((r) => r.playerId === id && r.date === sessionDate) || null;
 
-  const getPlayerAverages = (playerId: string) => {
-    const pr = getPlayerRatings(playerId);
-    if (!pr.length) return { p: 0, s: 0, m: 0, g: 0, t: 0 };
-    const avg = (key: string) => Math.round(pr.reduce((a, b) => a + (b[key] || 0), 0) / pr.length);
+  const getPlayerAverages = (id: string) => {
+    const pr = getPlayerRatings(id);
+    if (!pr.length) return { t: 0 };
+    const avg = (k: string) => Math.round(pr.reduce((a, b) => a + (b[k] || 0), 0) / pr.length);
     const p = avg("physical"), s = avg("skill"), m = avg("mental"), g = avg("general");
     return { p, s, m, g, t: Math.round((p + s + m + g) / 4) };
   };
 
-  const handleEvalChange = (playerId: string, field: string, value: any) => {
+  const handleEvalChange = (playerId: string, field: string, value: any) =>
     setEvalForms((prev) => ({ ...prev, [playerId]: { ...prev[playerId], [field]: value } }));
-  };
 
   const openEvalForm = (player: any) => {
     const existing = getSessionRating(player.id);
@@ -157,27 +166,14 @@ export default function CoachDashboard() {
   };
 
   const toggleEval = (player: any) => {
-    if (!player) return;
     const isPresent = attendance[player.id] === "present";
     if (!isPresent) {
-      if (attendance[player.id] === "absent") {
-        toast.error("اللاعب غائب", { description: "لا يمكن تقييم لاعب غائب" });
-      } else {
-        toast.warning("سجّل الحضور أولاً", { description: "اختر حاضر أو غائب لهذا اللاعب" });
-      }
+      if (attendance[player.id] === "absent") toast.error("اللاعب غائب");
+      else toast.warning("حدد الحضور أولاً");
       return;
     }
-    const existing = getSessionRating(player.id);
-    if (existing && !editMode.has(player.id)) {
-      // Toggle collapse only
-      setExpandedEval(prev => prev === player.id ? null : player.id);
-      return;
-    }
-    if (expandedEval === player.id) {
-      setExpandedEval(null);
-    } else {
-      openEvalForm(player);
-    }
+    if (expandedEval === player.id) { setExpandedEval(null); return; }
+    openEvalForm(player);
   };
 
   const enterEditMode = (player: any) => {
@@ -190,41 +186,34 @@ export default function CoachDashboard() {
     const data = evalForms[playerId];
     if (!data) return;
     if (!data.physical || !data.skill || !data.mental || !data.general) {
-      toast.error("الرجاء تعيين جميع التقييمات");
-      return;
+      toast.error("الرجاء تعيين جميع التقييمات"); return;
     }
     setEvalSaving(playerId);
     try {
       const existing = getSessionRating(playerId);
       const payload = {
-        playerId,
-        playerName,
-        coachId: user.uid,
-        coachName: profile?.name || "المدرب",
+        playerId, playerName,
+        coachId: user.uid, coachName: profile?.name || "المدرب",
         date: sessionDate,
-        physical: data.physical,
-        skill: data.skill,
-        mental: data.mental,
-        general: data.general,
+        physical: data.physical, skill: data.skill,
+        mental: data.mental, general: data.general,
         notes: data.notes || "",
       };
-
       if (existing) {
         await updateDoc(doc(db, "ratings", existing.id), { ...payload, updatedAt: serverTimestamp() });
         toast.success("تم تحديث التقييم");
       } else {
         await addDoc(collection(db, "ratings"), { ...payload, createdAt: serverTimestamp() });
-        broadcastPush({
+        // Send FCM via Cloud Function (no server needed)
+        sendRatingNotification({
           title: `تقييم جديد من ${profile?.name || "المدرب"}`,
           body: `بدني ${data.physical} · مهاري ${data.skill} · عقلي ${data.mental} · عام ${data.general}`,
-          recipients: [{ uid: playerId, role: "player" }],
-          scope: "user",
+          recipientUid: playerId,
         }).catch(() => {});
         toast.success("تم حفظ التقييم");
       }
-
       setExpandedEval(null);
-      setEditMode((prev) => { const s = new Set(prev); s.delete(playerId); return s; });
+      setEditMode((p) => { const s = new Set(p); s.delete(playerId); return s; });
     } catch (err: any) {
       toast.error("خطأ", { description: err.message });
     } finally {
@@ -234,9 +223,8 @@ export default function CoachDashboard() {
 
   const handlePhotoChange = async (url: string) => {
     if (!user) return;
-    const { doc: firestoreDoc, updateDoc: fsUpdateDoc } = await import("firebase/firestore");
-    await fsUpdateDoc(firestoreDoc(db, "coaches", user.uid), { photoURL: url });
-    await fsUpdateDoc(firestoreDoc(db, "users", user.uid), { photoURL: url });
+    await updateDoc(doc(db, "coaches", user.uid), { photoURL: url });
+    await updateDoc(doc(db, "users", user.uid), { photoURL: url });
   };
 
   const ScoreGrid = ({ value, onChange }: { value: number; onChange: (v: number) => void }) => (
@@ -248,37 +236,47 @@ export default function CoachDashboard() {
     </div>
   );
 
-  const DateBar = ({ editable = false }: { editable?: boolean }) => (
-    <div className={`border rounded-2xl p-3.5 mb-4 ${editable ? "bg-primary/5 border-primary/25" : "bg-card border-border"}`}>
-      <div className="text-[10px] text-primary font-extrabold mb-1">تاريخ الجلسة</div>
-      {editingDate && editable ? (
-        <div className="flex items-center gap-2">
-          <input type="date" value={tempDate} onChange={(e) => setTempDate(e.target.value)}
-            className="flex-1 bg-background rounded-lg px-3 py-1.5 text-sm border border-border outline-none focus:ring-2 focus:ring-primary/30" />
-          <button onClick={saveSessionDate} className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center"><Save className="w-3.5 h-3.5" /></button>
-          <button onClick={() => { setEditingDate(false); setTempDate(sessionDate); }} className="w-8 h-8 rounded-lg bg-muted text-muted-foreground flex items-center justify-center"><X className="w-3.5 h-3.5" /></button>
-        </div>
-      ) : (
-        <div className="flex items-center justify-between">
-          <div className="font-extrabold text-sm">يوم {getArabicDay(sessionDate)} الموافق {formatDisplayDate(sessionDate)}</div>
-          {editable && (
-            <button onClick={() => { setEditingDate(true); setTempDate(sessionDate); }} className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center text-muted-foreground hover:bg-muted/70">
-              <Pencil className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      )}
+  // Read-only session header shown in tabs
+  const SessionHeader = () => (
+    <div className="bg-primary/5 border border-primary/20 rounded-2xl px-4 py-3 mb-4">
+      <div className="font-extrabold text-sm text-foreground">
+        حضور وغياب يوم {getArabicDay(sessionDate)} الموافق {formatDisplayDate(sessionDate)}
+      </div>
     </div>
   );
 
   return (
     <Layout withBottomTabs>
-      {/* Coach Header */}
-      <div className="bg-card border border-border rounded-3xl p-4 mb-5 flex items-center gap-3 shadow-sm">
-        <AvatarUpload photoURL={profile?.photoURL} name={profile?.name} size={56} ring editable onUpload={handlePhotoChange} />
-        <div className="flex-1 min-w-0">
-          <h2 className="font-extrabold text-base truncate">{profile?.name || "المدرب"}</h2>
-          <p className="text-xs text-muted-foreground">{players.length} لاعب · {ratings.length} تقييم</p>
+      {/* Coach Header + date editor */}
+      <div className="bg-card border border-border rounded-3xl p-4 mb-5 shadow-sm">
+        <div className="flex items-center gap-3 mb-3">
+          <AvatarUpload photoURL={profile?.photoURL} name={profile?.name} size={56} ring editable onUpload={handlePhotoChange} />
+          <div className="flex-1 min-w-0">
+            <h2 className="font-extrabold text-base truncate">{profile?.name || "المدرب"}</h2>
+            <p className="text-xs text-muted-foreground">{players.length} لاعب · {ratings.length} تقييم</p>
+          </div>
+        </div>
+        {/* Session date editor in header */}
+        <div className="bg-muted/40 rounded-xl px-3 py-2">
+          {editingDate ? (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground font-bold shrink-0">يوم الجلسة:</span>
+              <input type="date" value={tempDate} onChange={(e) => setTempDate(e.target.value)}
+                className="flex-1 bg-background rounded-lg px-2 py-1 text-sm border border-border outline-none focus:ring-2 focus:ring-primary/30 min-w-0" />
+              <button onClick={saveSessionDate} className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shrink-0"><Save className="w-3 h-3" /></button>
+              <button onClick={() => { setEditingDate(false); setTempDate(sessionDate); }} className="w-7 h-7 rounded-lg bg-muted text-muted-foreground flex items-center justify-center shrink-0"><X className="w-3 h-3" /></button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div className="text-[12px] font-extrabold text-foreground">
+                يوم الجلسة: {getArabicDay(sessionDate)} {formatDisplayDate(sessionDate)}
+              </div>
+              <button onClick={() => { setEditingDate(true); setTempDate(sessionDate); }}
+                className="flex items-center gap-1 text-[11px] text-primary font-bold hover:opacity-70 transition-opacity">
+                <Pencil className="w-3 h-3" />تغيير
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -313,8 +311,7 @@ export default function CoachDashboard() {
         {/* ── EVALUATIONS TAB ── */}
         {activeTab === "evaluations" && (
           <motion.div key="evaluations" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-2.5">
-            <DateBar editable />
-
+            <SessionHeader />
             {players.length === 0 && <div className="text-center text-muted-foreground text-sm py-12 bg-card rounded-2xl border border-border">لا يوجد لاعبون</div>}
 
             {players.map((player) => {
@@ -331,50 +328,38 @@ export default function CoachDashboard() {
 
               return (
                 <div key={player.id} className={`bg-card border rounded-2xl overflow-hidden transition-all ${isExpanded ? "border-primary shadow-sm" : isAbsent ? "border-border opacity-55" : "border-border"}`}>
-                  {/* Player row */}
                   <div className="p-3">
-                    {/* Top: Avatar + name + attendance buttons */}
                     <div className="flex items-center gap-3">
                       <UserAvatar photoURL={player.photoURL} name={player.firstName} size={42} />
                       <div className="flex-1 min-w-0">
                         <div className="font-extrabold text-sm truncate">{player.firstName} {player.fatherName}</div>
                         <div className="text-[10px] text-muted-foreground">متوسط: {avg.t}/10</div>
                       </div>
-                      {/* Attendance buttons - always visible */}
-                      <div className="flex gap-1.5 shrink-0">
-                        <button
-                          onClick={() => markAttendance(player, "present")}
-                          disabled={isLoading}
-                          className={`flex items-center gap-1 px-2 py-1.5 rounded-xl text-[11px] font-bold transition-all ${attStatus === "present" ? "bg-green-500 text-white shadow-sm" : "bg-muted text-muted-foreground hover:bg-green-100 dark:hover:bg-green-900/20 hover:text-green-700"}`}
-                        >
+                      {/* Attendance buttons */}
+                      <div className="flex gap-1 shrink-0">
+                        <button onClick={() => markAttendance(player, "present")} disabled={isLoading}
+                          className={`flex items-center gap-1 px-2 py-1.5 rounded-xl text-[11px] font-bold transition-all ${attStatus === "present" ? "bg-green-500 text-white shadow-sm" : "bg-muted text-muted-foreground hover:bg-green-100 dark:hover:bg-green-900/20 hover:text-green-700"}`}>
                           <Check className="w-3 h-3" />حاضر
                         </button>
-                        <button
-                          onClick={() => markAttendance(player, "absent")}
-                          disabled={isLoading}
-                          className={`flex items-center gap-1 px-2 py-1.5 rounded-xl text-[11px] font-bold transition-all ${attStatus === "absent" ? "bg-red-500 text-white shadow-sm" : "bg-muted text-muted-foreground hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-700"}`}
-                        >
+                        <button onClick={() => markAttendance(player, "absent")} disabled={isLoading}
+                          className={`flex items-center gap-1 px-2 py-1.5 rounded-xl text-[11px] font-bold transition-all ${attStatus === "absent" ? "bg-red-500 text-white shadow-sm" : "bg-muted text-muted-foreground hover:bg-red-100 dark:hover:bg-red-900/20 hover:text-red-700"}`}>
                           <X className="w-3 h-3" />غائب
                         </button>
                       </div>
                     </div>
 
-                    {/* Bottom: Rating status + expand/edit controls */}
+                    {/* Rating controls — only when present */}
                     {isPresent && (
                       <div className="mt-2.5 flex items-center justify-between gap-2 pt-2.5 border-t border-border">
                         {isRated && !isInEditMode ? (
                           <>
                             <div className="flex items-center gap-1.5">
                               <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                              <span className="text-[11px] font-bold text-green-600 dark:text-green-400">
-                                تم التقييم ({sessionRating.coachName || "مدرب"})
-                              </span>
+                              <span className="text-[11px] font-bold text-green-600 dark:text-green-400">تم التقييم ({sessionRating.coachName || "مدرب"})</span>
                             </div>
                             <div className="flex items-center gap-1.5">
-                              <button
-                                onClick={() => enterEditMode(player)}
-                                className="flex items-center gap-1 text-[11px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-colors"
-                              >
+                              <button onClick={() => enterEditMode(player)}
+                                className="flex items-center gap-1 text-[11px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-colors">
                                 <Edit3 className="w-3 h-3" />تعديل
                               </button>
                               <button onClick={() => toggleEval(player)} className="w-7 h-7 rounded-full bg-muted text-muted-foreground flex items-center justify-center">
@@ -384,10 +369,9 @@ export default function CoachDashboard() {
                           </>
                         ) : (
                           <>
-                            <span className="text-[11px] text-muted-foreground">
-                              {isInEditMode ? "وضع التعديل" : "لم يُقيَّم بعد"}
-                            </span>
-                            <button onClick={() => toggleEval(player)} className="flex items-center gap-1.5 text-[11px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-colors">
+                            <span className="text-[11px] text-muted-foreground">{isInEditMode ? "وضع التعديل" : "لم يُقيَّم بعد"}</span>
+                            <button onClick={() => toggleEval(player)}
+                              className="flex items-center gap-1.5 text-[11px] font-bold text-primary bg-primary/10 hover:bg-primary/20 px-2.5 py-1 rounded-lg transition-colors">
                               {isExpanded ? "إغلاق" : "تقييم"}
                               {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                             </button>
@@ -397,11 +381,10 @@ export default function CoachDashboard() {
                     )}
                   </div>
 
-                  {/* Eval form */}
                   <AnimatePresence>
                     {isExpanded && isPresent && (
                       <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                        <div className="p-4 border-t border-border bg-muted/15 space-y-5">
+                        <div className="p-4 border-t border-border bg-muted/10 space-y-5">
                           {[
                             { key: "physical", label: "التقييم البدني", Icon: Activity },
                             { key: "skill", label: "التقييم المهاري", Icon: Dumbbell },
@@ -409,37 +392,22 @@ export default function CoachDashboard() {
                             { key: "general", label: "التقييم العام", Icon: Sparkles },
                           ].map(({ key, label, Icon }) => (
                             <div key={key} className="space-y-2">
-                              <Label className="text-xs font-extrabold flex items-center gap-1.5">
-                                <Icon className="w-3.5 h-3.5" /> {label}
-                              </Label>
+                              <Label className="text-xs font-extrabold flex items-center gap-1.5"><Icon className="w-3.5 h-3.5" />{label}</Label>
                               <ScoreGrid value={formData[key] || 0} onChange={(v) => handleEvalChange(player.id, key, v)} />
                             </div>
                           ))}
                           <div className="space-y-2">
                             <Label className="text-xs font-extrabold">ملاحظات</Label>
-                            <Textarea
-                              placeholder="اكتب ملاحظاتك هنا..."
-                              value={formData.notes || ""}
+                            <Textarea placeholder="اكتب ملاحظاتك هنا..." value={formData.notes || ""}
                               onChange={(e) => handleEvalChange(player.id, "notes", e.target.value)}
-                              className="resize-none text-sm min-h-[72px] bg-background"
-                              rows={3}
-                            />
+                              className="resize-none text-sm min-h-[72px] bg-background" rows={3} />
                           </div>
                           <div className="flex gap-2">
-                            <Button
-                              onClick={() => submitEval(player.id, `${player.firstName} ${player.fatherName}`)}
-                              disabled={evalSaving === player.id}
-                              className="flex-1 h-10 font-bold text-sm rounded-xl"
-                            >
+                            <Button onClick={() => submitEval(player.id, `${player.firstName} ${player.fatherName}`)}
+                              disabled={evalSaving === player.id} className="flex-1 h-10 font-bold text-sm rounded-xl">
                               {evalSaving === player.id ? "جاري الحفظ..." : isRated ? "حفظ التعديل" : "حفظ التقييم"}
                             </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() => { setExpandedEval(null); setEditMode((p) => { const s = new Set(p); s.delete(player.id); return s; }); }}
-                              className="h-10 px-4 rounded-xl"
-                            >
-                              إلغاء
-                            </Button>
+                            <Button variant="outline" onClick={() => { setExpandedEval(null); setEditMode((p) => { const s = new Set(p); s.delete(player.id); return s; }); }} className="h-10 px-4 rounded-xl">إلغاء</Button>
                           </div>
                         </div>
                       </motion.div>
@@ -451,27 +419,23 @@ export default function CoachDashboard() {
           </motion.div>
         )}
 
-        {/* ── ATTENDANCE TAB (read-only view) ── */}
+        {/* ── ATTENDANCE TAB (read-only) ── */}
         {activeTab === "attendance" && (
           <motion.div key="attendance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-2.5">
-            <DateBar editable />
-
-            {/* Summary */}
+            <SessionHeader />
             <div className="grid grid-cols-3 gap-2 mb-2">
               {[
-                { label: "إجمالي", count: players.length, color: "text-foreground bg-muted" },
-                { label: "حاضر", count: Object.values(attendance).filter((s) => s === "present").length, color: "text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/20" },
-                { label: "غائب", count: Object.values(attendance).filter((s) => s === "absent").length, color: "text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/20" },
-              ].map(({ label, count, color }) => (
-                <div key={label} className={`rounded-xl p-2.5 text-center ${color}`}>
+                { label: "إجمالي", count: players.length, cls: "text-foreground bg-muted" },
+                { label: "حاضر", count: Object.values(attendance).filter((s) => s === "present").length, cls: "text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-900/20" },
+                { label: "غائب", count: Object.values(attendance).filter((s) => s === "absent").length, cls: "text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-900/20" },
+              ].map(({ label, count, cls }) => (
+                <div key={label} className={`rounded-xl p-2.5 text-center ${cls}`}>
                   <div className="font-extrabold text-lg">{count}</div>
                   <div className="text-[10px] font-bold">{label}</div>
                 </div>
               ))}
             </div>
-
             {players.length === 0 && <div className="text-center text-muted-foreground text-sm py-12 bg-card rounded-2xl border border-border">لا يوجد لاعبون</div>}
-
             {players.map((player) => {
               const status = attendance[player.id];
               return (
@@ -538,16 +502,12 @@ export default function CoachDashboard() {
       {selectedPlayer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm" onClick={() => setSelectedPlayer(null)}>
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-            className="bg-card w-full max-w-2xl rounded-3xl shadow-2xl border border-border overflow-hidden"
-            onClick={(e) => e.stopPropagation()}>
+            className="bg-card w-full max-w-2xl rounded-3xl shadow-2xl border border-border overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-border flex items-center gap-4 bg-muted/20">
               <UserAvatar photoURL={selectedPlayer.photoURL} name={selectedPlayer.firstName} size={64} ring />
               <div>
                 <h2 className="text-lg font-extrabold">{selectedPlayer.fullName || `${selectedPlayer.firstName} ${selectedPlayer.fatherName}`}</h2>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {selectedPlayer.dob && <>تاريخ الميلاد: {selectedPlayer.dob} · </>}
-                  هاتف: <span dir="ltr">{selectedPlayer.phone}</span>
-                </div>
+                <div className="text-xs text-muted-foreground mt-1">هاتف: <span dir="ltr">{selectedPlayer.phone}</span></div>
               </div>
             </div>
             <div className="p-5 max-h-[60vh] overflow-y-auto space-y-5">

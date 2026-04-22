@@ -1,50 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { getToken, onMessage } from "firebase/messaging";
 import { db, messaging, VAPID_KEY } from "./firebase";
 
-const PUSH_QUEUE_KEY = "zohour_push_queue";
-
-function getPushQueue(): any[] {
-  try {
-    return JSON.parse(localStorage.getItem(PUSH_QUEUE_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function setPushQueue(q: any[]) {
-  try {
-    localStorage.setItem(PUSH_QUEUE_KEY, JSON.stringify(q));
-  } catch {}
-}
-
-async function flushPushQueue() {
-  const q = getPushQueue();
-  if (!q.length) return;
-  const remaining: any[] = [];
-  const base = (import.meta as any).env?.VITE_API_BASE_URL || "/api";
-  for (const payload of q) {
-    try {
-      await fetch(`${base}/notify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } catch {
-      remaining.push(payload);
-    }
-  }
-  setPushQueue(remaining);
-}
-
-// Flush queue when internet returns
-if (typeof window !== "undefined") {
-  window.addEventListener("online", () => {
-    flushPushQueue().catch(() => {});
-  });
-}
+/* ── FCM Token Registration ────────────────────────────────── */
 
 let swReg: ServiceWorkerRegistration | null = null;
 
@@ -52,10 +12,8 @@ export async function ensureMessagingSW(): Promise<ServiceWorkerRegistration | n
   if (!("serviceWorker" in navigator)) return null;
   if (swReg) return swReg;
   try {
-    swReg = await navigator.serviceWorker.register(
-      "/firebase-messaging-sw.js",
-      { scope: "/" },
-    );
+    swReg = await navigator.serviceWorker.register("/firebase-messaging-sw.js", { scope: "/" });
+    await swReg.update();
     return swReg;
   } catch (e) {
     console.warn("FCM SW registration failed", e);
@@ -69,13 +27,7 @@ async function saveFcmToken(uid: string, role: "player" | "coach", token: string
   try {
     await setDoc(
       doc(db, "fcmTokens", `${uid}_${token.slice(-12)}`),
-      {
-        uid,
-        role,
-        token,
-        userAgent: navigator.userAgent,
-        updatedAt: serverTimestamp(),
-      },
+      { uid, role, token, userAgent: navigator.userAgent, updatedAt: serverTimestamp() },
       { merge: true },
     );
   } catch (e) {
@@ -83,10 +35,7 @@ async function saveFcmToken(uid: string, role: "player" | "coach", token: string
   }
 }
 
-export async function registerFcmForUser(
-  uid: string,
-  role: "player" | "coach",
-): Promise<string | null> {
+export async function registerFcmForUser(uid: string, role: "player" | "coach"): Promise<string | null> {
   if (!messaging) return null;
   if (!("Notification" in window)) return null;
 
@@ -99,10 +48,7 @@ export async function registerFcmForUser(
   }
 
   try {
-    const token = await getToken(messaging, {
-      vapidKey: VAPID_KEY,
-      serviceWorkerRegistration: reg,
-    });
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
     if (token) {
       await saveFcmToken(uid, role, token);
       return token;
@@ -112,6 +58,8 @@ export async function registerFcmForUser(
   }
   return null;
 }
+
+/* ── Foreground Message Listener ───────────────────────────── */
 
 let foregroundListenerSet = false;
 export function setupForegroundListener() {
@@ -130,8 +78,7 @@ export function setupForegroundListener() {
 function playPing() {
   if (document.hidden) return;
   try {
-    const audioCtx = new (window.AudioContext ||
-      (window as any).webkitAudioContext)();
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = "sine";
@@ -147,6 +94,49 @@ function playPing() {
   } catch {}
 }
 
+/* ── Send notification via Firestore → Cloud Function ──────── */
+// No server required. Writing to "notificationQueue" triggers a
+// Firebase Cloud Function that sends the FCM push notification.
+
+export async function sendRatingNotification(payload: {
+  title: string;
+  body: string;
+  recipientUid: string;
+  url?: string;
+}) {
+  try {
+    await addDoc(collection(db, "notificationQueue"), {
+      ...payload,
+      url: payload.url || "/",
+      createdAt: serverTimestamp(),
+    });
+  } catch (e) {
+    console.warn("Failed to queue notification:", e);
+  }
+}
+
+/* ── Legacy broadcastPush compat shim ──────────────────────── */
+export async function broadcastPush(payload: {
+  title: string;
+  body: string;
+  recipients?: { uid: string; role: "player" | "coach" }[];
+  excludeUid?: string;
+  scope?: "team" | "user";
+  url?: string;
+}) {
+  if (!payload.recipients) return;
+  for (const r of payload.recipients) {
+    if (payload.excludeUid && r.uid === payload.excludeUid) continue;
+    await sendRatingNotification({
+      title: payload.title,
+      body: payload.body,
+      recipientUid: r.uid,
+      url: payload.url,
+    });
+  }
+}
+
+/* ── useNotifications hook ──────────────────────────────────── */
 export function useNotifications() {
   const [permission, setPermission] = useState<NotificationPermission>(
     typeof Notification !== "undefined" ? Notification.permission : "default",
@@ -156,8 +146,6 @@ export function useNotifications() {
     if ("Notification" in window) setPermission(Notification.permission);
     ensureMessagingSW();
     setupForegroundListener();
-    // Flush any queued pushes on mount
-    if (navigator.onLine) flushPushQueue().catch(() => {});
   }, []);
 
   const requestPermission = useCallback(async () => {
@@ -177,39 +165,4 @@ export function useNotifications() {
   );
 
   return { permission, requestPermission, notify };
-}
-
-// Trigger a server-side push (ratings only). Queues offline and retries when online.
-export async function broadcastPush(payload: {
-  title: string;
-  body: string;
-  excludeUid?: string;
-  recipients?: { uid: string; role: "player" | "coach" }[];
-  scope?: "team" | "user";
-  url?: string;
-}) {
-  const base = (import.meta as any).env?.VITE_API_BASE_URL || "/api";
-
-  if (navigator.onLine) {
-    await flushPushQueue().catch(() => {});
-  }
-
-  try {
-    await fetch(`${base}/notify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-  } catch {
-    // Queue for retry when internet returns
-    const q = getPushQueue();
-    q.push(payload);
-    setPushQueue(q);
-    // Register background sync in SW if supported
-    ensureMessagingSW().then((reg) => {
-      if (reg && "sync" in (reg as any)) {
-        (reg as any).sync.register("retry-push").catch(() => {});
-      }
-    });
-  }
 }
