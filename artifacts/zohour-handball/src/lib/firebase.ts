@@ -19,7 +19,7 @@ export const db = getFirestore(app);
 
 // Web Push public key (VAPID)
 export const VAPID_KEY =
-  "BGyfR8zY2F1fsXTG7bMA9hPFIR7nW25HjaPwNPWlwyCpDgJBUwTt5eaw3CCsnu3v-iYEijw-OJ_OKNYauVqgD-Y";
+  "BGyfR8zY2F1fsXTG7bMA9hPFlR7nW25HjaPwNPWIwyCpDgJBUwTt5eaw3CCsnu3v-iYEijw-0J_OKNYauVqgD-Y";
 
 export let messaging: Messaging | null = null;
 try {
