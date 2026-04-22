@@ -20,11 +20,6 @@ const setupSchema = z.object({
   fatherName: z.string().min(2, "مطلوب"),
   grandfatherName: z.string().min(2, "مطلوب"),
   phone: z.string().regex(/^\d{10,11}$/, "يجب أن يكون 10-11 رقماً"),
-  whatsappApiKey: z
-    .string()
-    .regex(/^\d{6,10}$/, "كود مكوّن من 6-10 أرقام")
-    .optional()
-    .or(z.literal("")),
   day: z.string().regex(/^(0?[1-9]|[12][0-9]|3[01])$/, "1-31"),
   month: z.string().regex(/^(0?[1-9]|1[012])$/, "1-12"),
   year: z.string().refine((val) => {
@@ -46,7 +41,6 @@ export default function PlayerSetup() {
       fatherName: "",
       grandfatherName: "",
       phone: "",
-      whatsappApiKey: "",
       day: "",
       month: "",
       year: "",
@@ -72,7 +66,6 @@ export default function PlayerSetup() {
         grandfatherName: data.grandfatherName,
         fullName,
         phone: data.phone,
-        whatsappApiKey: data.whatsappApiKey || "",
         dob,
         photoURL,
         createdAt: serverTimestamp(),
@@ -164,33 +157,6 @@ export default function PlayerSetup() {
               {form.formState.errors.phone && (
                 <p className="text-destructive text-[10px]">
                   {form.formState.errors.phone.message}
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs font-bold">
-                كود واتساب (CallMeBot){" "}
-                <span className="text-muted-foreground font-normal">- اختياري</span>
-              </Label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                {...form.register("whatsappApiKey")}
-                className="h-10 bg-muted/50 rounded-lg text-sm text-left"
-                dir="ltr"
-                placeholder="مثال: 1234567"
-              />
-              <p className="text-[10px] text-muted-foreground leading-relaxed">
-                لتلقّي إشعار واتساب عند كل تقييم: أضف{" "}
-                <span dir="ltr" className="font-bold">+34 644 51 95 23</span> في
-                جهات الاتصال، ثم ابعت له على واتساب جملة{" "}
-                <span dir="ltr" className="font-mono">I allow callmebot to send me messages</span>.
-                هيرد عليك بكود من أرقام، احفظه هنا.
-              </p>
-              {form.formState.errors.whatsappApiKey && (
-                <p className="text-destructive text-[10px]">
-                  {form.formState.errors.whatsappApiKey.message}
                 </p>
               )}
             </div>

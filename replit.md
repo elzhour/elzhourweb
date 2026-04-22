@@ -8,9 +8,9 @@
 ## المكدس التقني
 
 - **Frontend**: React 18 + Vite + Tailwind CSS + shadcn/ui
-- **Backend**: Firebase (Firestore, Auth)
-- **الإشعارات**: WhatsApp عبر CallMeBot API — مجاني، بدون سيرفر، بدون FCM. كل لاعب بيفعّل CallMeBot لرقمه ويحفظ الكود في الملف الشخصي
-- **النشر**: Netlify (frontend فقط)
+- **Backend**: Firebase (Firestore, Auth, FCM)
+- **الإشعارات**: Web Push عبر FCM — Cloud Function بتشتغل لما يتضاف rating جديد وتبعت push للاعب (شغّال حتى لو المتصفح مقفول)
+- **النشر**: Netlify (frontend) + Firebase Functions (إشعارات — Blaze plan)
 - **رفع الصور**: Cloudinary
 
 ## مجموعات Firestore
@@ -24,12 +24,14 @@
 | `attendance` | الحضور والغياب (docId: `sessionDate_playerId`) |
 | `settings/current` | إعدادات مشتركة (تاريخ الجلسة) |
 
+**ملاحظة:** الـ `fcmToken` بيتخزن مباشرة على `players/{uid}.fcmToken` (مش في collection منفصلة).
+
 ## الميزات الرئيسية
 
 - **لوحة المدرب**: تقييم اللاعبين مع حضور/غياب inline، تأمين التقييم بعد الحفظ مع زر تعديل، رؤية مشتركة بين المدربين
 - **لوحة اللاعب**: عرض التقييمات والحضور للجلسة الحالية فقط
 - **تاريخ الجلسة**: يُحدَّد من المدرب ويُحفَظ في Firestore (`settings/current`) ليراه الجميع
-- **الإشعارات**: عند حفظ تقييم جديد، متصفح المدرب يستدعي CallMeBot WhatsApp API مباشرة لرقم اللاعب باستخدام الكود المحفوظ في `players/{uid}.whatsappApiKey` (`src/lib/whatsapp.ts`)
+- **الإشعارات**: عند حفظ تقييم في `ratings/`، Cloud Function (`functions/index.js`) بتقرا `players/{playerId}.fcmToken` وتبعت Web Push عبر FCM. الـ Service Worker (`firebase-messaging-sw.js`) بيعرضه حتى لو التبويب أو المتصفح مقفول
 - **تغيير الصورة**: اضغط على الصورة في أي وقت
 
 ## كيفية النشر على Netlify
@@ -41,15 +43,28 @@
 
 أو استخدم `netlify.toml` الموجود في الـ root مباشرة.
 
-## الإشعارات (CallMeBot WhatsApp)
+## الإشعارات (Firebase Cloud Messaging)
 
-كل لاعب لازم يفعّل البوت لرقمه مرة واحدة:
+### إزاي بتشتغل
+1. أول ما اللاعب يدخل لوحته، التطبيق بيطلب إذن الإشعارات.
+2. لو وافق، بيتسحب FCM token من جوجل ويتخزن في `players/{uid}.fcmToken`.
+3. لما المدرب يحفظ تقييم جديد، Cloud Function (`sendRatingNotification`) بتشتغل تلقائياً، تقرا الـ token، وتبعت push notification.
+4. Service Worker (`firebase-messaging-sw.js`) بيعرض الإشعار في الخلفية حتى لو التبويب/المتصفح مقفول.
 
-1. يضيف الرقم **+34 644 51 95 23** في جهات الاتصال باسم *CallMeBot*.
-2. يبعت له على واتساب جملة: `I allow callmebot to send me messages`.
-3. البوت بيرد بكود من 6-10 أرقام (API key) → يدخله اللاعب في صفحة "بيانات اللاعب".
+### نشر الـ Cloud Function (مرة واحدة)
+> ⚠️ يتطلب Firebase **Blaze plan** (pay-as-you-go). الاستخدام المتوقع للفريق ده مجاناً 100% لأن حدود Spark كافية، بس Firebase بتطلب Blaze عشان تنشر functions أصلاً.
 
-كل ما المدرب يحفظ تقييم، المتصفح بيبعت رسالة GET لـ `api.callmebot.com/whatsapp.php` بالـ phone + apikey + text. مفيش سيرفر، مفيش تكلفة. المجاني محدود تقريباً برسالة كل دقيقتين لكل رقم.
+```bash
+npm install -g firebase-tools
+firebase login
+cd functions && npm install && cd ..
+firebase deploy --only functions
+```
+
+ملفات الـ Firebase:
+- `functions/index.js` — الـ Cloud Function اللي بتبعت الإشعار
+- `firebase.json` — تهيئة المشروع
+- `.firebaserc` — اسم المشروع
 
 ## كلمة سر المدرب
 

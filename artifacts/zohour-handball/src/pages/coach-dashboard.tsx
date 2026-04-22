@@ -22,7 +22,6 @@ import {
   CheckCircle2, Edit3,
 } from "lucide-react";
 import { toast } from "sonner";
-import { sendWhatsApp, buildRatingMessage, formatArabicSessionDate } from "@/lib/whatsapp";
 import { BottomTabs } from "@/components/bottom-tabs";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { UserAvatar } from "@/components/user-avatar";
@@ -201,35 +200,10 @@ export default function CoachDashboard() {
         toast.success("تم تحديث التقييم");
       } else {
         await addDoc(collection(db, "ratings"), { ...payload, createdAt: serverTimestamp() });
+        // The Firebase Cloud Function `sendRatingNotification` listens to
+        // ratings/{ratingId} onCreate and pushes the FCM notification to
+        // the player automatically — no client-side push code needed here.
         toast.success("تم حفظ التقييم");
-
-        // Send WhatsApp notification via CallMeBot (free, browser-side)
-        const player = players.find((p) => p.id === playerId);
-        const phone = player?.phone;
-        const apiKey = player?.whatsappApiKey;
-        if (phone && apiKey) {
-          const { dayName, date } = formatArabicSessionDate(sessionDate);
-          const message = buildRatingMessage({
-            playerName: playerName,
-            coachName: profile?.name || "المدرب",
-            dayName,
-            date,
-          });
-          sendWhatsApp({ phone, apiKey, message })
-            .then((r) => {
-              if (!r.ok) {
-                console.warn("CallMeBot send failed", r.status, r.text);
-                toast.warning("تعذّر إرسال إشعار واتساب", {
-                  description: "تأكد من تفعيل CallMeBot لرقم اللاعب",
-                });
-              }
-            })
-            .catch((e) => console.warn("WhatsApp error:", e));
-        } else {
-          toast.message("تم الحفظ بدون إشعار واتساب", {
-            description: "اللاعب لم يفعّل CallMeBot أو لم يضف الكود",
-          });
-        }
       }
       setExpandedEval(null);
       setEditMode((p) => { const s = new Set(p); s.delete(playerId); return s; });
