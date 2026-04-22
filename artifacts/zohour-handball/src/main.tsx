@@ -1,8 +1,8 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { ensureServiceWorker } from "./lib/notifications";
+import { unregisterLegacyServiceWorkers } from "./lib/notifications";
 
-ensureServiceWorker();
+unregisterLegacyServiceWorkers();
 
 createRoot(document.getElementById("root")!).render(<App />);

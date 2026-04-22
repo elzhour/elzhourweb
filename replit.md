@@ -8,8 +8,8 @@
 ## المكدس التقني
 
 - **Frontend**: React 18 + Vite + Tailwind CSS + shadcn/ui
-- **Backend**: Firebase (Firestore, Auth, FCM)
-- **الإشعارات**: تُرسَل مباشرة من المتصفح (Client-side) عبر FCM HTTP v1 API — يعمل على الخطة المجانية (Spark) بدون Cloud Functions
+- **Backend**: Firebase (Firestore, Auth)
+- **الإشعارات**: WhatsApp عبر CallMeBot API — مجاني، بدون سيرفر، بدون FCM. كل لاعب بيفعّل CallMeBot لرقمه ويحفظ الكود في الملف الشخصي
 - **النشر**: Netlify (frontend فقط)
 - **رفع الصور**: Cloudinary
 
@@ -22,8 +22,6 @@
 | `coaches` | ملفات المدربين |
 | `ratings` | تقييمات اللاعبين |
 | `attendance` | الحضور والغياب (docId: `sessionDate_playerId`) |
-| `fcmTokens` | توكنات الإشعارات |
-| `notificationQueue` | طابور الإشعارات (Cloud Function يمسحها بعد الإرسال) |
 | `settings/current` | إعدادات مشتركة (تاريخ الجلسة) |
 
 ## الميزات الرئيسية
@@ -31,7 +29,7 @@
 - **لوحة المدرب**: تقييم اللاعبين مع حضور/غياب inline، تأمين التقييم بعد الحفظ مع زر تعديل، رؤية مشتركة بين المدربين
 - **لوحة اللاعب**: عرض التقييمات والحضور للجلسة الحالية فقط
 - **تاريخ الجلسة**: يُحدَّد من المدرب ويُحفَظ في Firestore (`settings/current`) ليراه الجميع
-- **الإشعارات**: متصفح المدرب يوقّع JWT بـ Service Account المضمّن داخل الـ bundle ويستدعي FCM v1 API مباشرة (`src/lib/client-push.ts`). الـ Service Worker (`firebase-messaging-sw.js`) بيعرض الإشعار وبيفتح صفحة اللاعب عند الضغط
+- **الإشعارات**: عند حفظ تقييم جديد، متصفح المدرب يستدعي CallMeBot WhatsApp API مباشرة لرقم اللاعب باستخدام الكود المحفوظ في `players/{uid}.whatsappApiKey` (`src/lib/whatsapp.ts`)
 - **تغيير الصورة**: اضغط على الصورة في أي وقت
 
 ## كيفية النشر على Netlify
@@ -43,12 +41,15 @@
 
 أو استخدم `netlify.toml` الموجود في الـ root مباشرة.
 
-## الإشعارات (الخطة المجانية)
+## الإشعارات (CallMeBot WhatsApp)
 
-- لا تحتاج Firebase Functions ولا أي سيرفر.
-- الـ Service Account JSON موجود في `artifacts/zohour-handball/src/lib/firebase-service-account.json` ويُحمَّل ضمن الـ bundle.
-- متصفح المدرب يولّد OAuth token من الـ SA ويرسل الـ FCM مباشرة عبر HTTP v1 API.
-- ⚠️ تحذير أمني: تضمين Service Account في الـ frontend يعطي أي زائر صلاحيات كاملة على Firebase. مقبول لتطبيق فريق صغير خاص فقط.
+كل لاعب لازم يفعّل البوت لرقمه مرة واحدة:
+
+1. يضيف الرقم **+34 644 51 95 23** في جهات الاتصال باسم *CallMeBot*.
+2. يبعت له على واتساب جملة: `I allow callmebot to send me messages`.
+3. البوت بيرد بكود من 6-10 أرقام (API key) → يدخله اللاعب في صفحة "بيانات اللاعب".
+
+كل ما المدرب يحفظ تقييم، المتصفح بيبعت رسالة GET لـ `api.callmebot.com/whatsapp.php` بالـ phone + apikey + text. مفيش سيرفر، مفيش تكلفة. المجاني محدود تقريباً برسالة كل دقيقتين لكل رقم.
 
 ## كلمة سر المدرب
 

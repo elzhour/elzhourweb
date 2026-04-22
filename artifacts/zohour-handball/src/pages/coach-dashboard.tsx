@@ -22,7 +22,7 @@ import {
   CheckCircle2, Edit3,
 } from "lucide-react";
 import { toast } from "sonner";
-import { registerFcmForUser, sendRatingNotification, setupForegroundListener } from "@/lib/notifications";
+import { sendWhatsApp, buildRatingMessage, formatArabicSessionDate } from "@/lib/whatsapp";
 import { BottomTabs } from "@/components/bottom-tabs";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { UserAvatar } from "@/components/user-avatar";
@@ -66,9 +66,6 @@ export default function CoachDashboard() {
   const [tempDate, setTempDate] = useState(sessionDate);
   const [attendanceSaving, setAttendanceSaving] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user) { registerFcmForUser(user.uid, "coach"); setupForegroundListener(); }
-  }, [user]);
 
   // Sync session date from Firestore
   useEffect(() => {
@@ -204,14 +201,35 @@ export default function CoachDashboard() {
         toast.success("تم تحديث التقييم");
       } else {
         await addDoc(collection(db, "ratings"), { ...payload, createdAt: serverTimestamp() });
-        // Send FCM directly from the client (no Cloud Function needed)
-        sendRatingNotification({
-          title: "تقييم جديد",
-          body: `أضاف كابتن ${profile?.name || "المدرب"} تقييم جديد لك`,
-          recipientUid: playerId,
-          url: "/player",
-        }).catch(() => {});
         toast.success("تم حفظ التقييم");
+
+        // Send WhatsApp notification via CallMeBot (free, browser-side)
+        const player = players.find((p) => p.id === playerId);
+        const phone = player?.phone;
+        const apiKey = player?.whatsappApiKey;
+        if (phone && apiKey) {
+          const { dayName, date } = formatArabicSessionDate(sessionDate);
+          const message = buildRatingMessage({
+            playerName: playerName,
+            coachName: profile?.name || "المدرب",
+            dayName,
+            date,
+          });
+          sendWhatsApp({ phone, apiKey, message })
+            .then((r) => {
+              if (!r.ok) {
+                console.warn("CallMeBot send failed", r.status, r.text);
+                toast.warning("تعذّر إرسال إشعار واتساب", {
+                  description: "تأكد من تفعيل CallMeBot لرقم اللاعب",
+                });
+              }
+            })
+            .catch((e) => console.warn("WhatsApp error:", e));
+        } else {
+          toast.message("تم الحفظ بدون إشعار واتساب", {
+            description: "اللاعب لم يفعّل CallMeBot أو لم يضف الكود",
+          });
+        }
       }
       setExpandedEval(null);
       setEditMode((p) => { const s = new Set(p); s.delete(playerId); return s; });

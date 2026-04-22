@@ -14,7 +14,6 @@ import {
 } from "recharts";
 import { Activity, Dumbbell, Brain, Sparkles, BarChart3, CalendarCheck, List } from "lucide-react";
 import { format } from "date-fns";
-import { registerFcmForUser, setupForegroundListener } from "@/lib/notifications";
 import { BottomTabs } from "@/components/bottom-tabs";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { UserAvatar } from "@/components/user-avatar";
@@ -43,10 +42,6 @@ export default function PlayerDashboard() {
   );
   const [sessionAttendance, setSessionAttendance] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<ActiveTab>("ratings");
-
-  useEffect(() => {
-    if (user) { registerFcmForUser(user.uid, "player"); setupForegroundListener(); }
-  }, [user]);
 
   // Listen to the shared session date set by the coach
   useEffect(() => {
