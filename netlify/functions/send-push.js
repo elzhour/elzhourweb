@@ -76,9 +76,12 @@ exports.handler = async (event) => {
     data: { tag: "zohour-rating" },
   };
 
-  const key = ONESIGNAL_REST_API_KEY.trim();
+  // Strip whitespace AND any zero-width / invisible characters that may have
+  // been pasted in by accident.
+  const key = ONESIGNAL_REST_API_KEY.replace(/[\s\u200B-\u200D\uFEFF]/g, "");
+  const fromEnv = !!process.env.ONESIGNAL_REST_API_KEY;
   console.log(
-    `[send-push] using key prefix=${key.slice(0, 12)}… len=${key.length}, app_id=${ONESIGNAL_APP_ID}`,
+    `[send-push] key source=${fromEnv ? "ENV" : "HARDCODED"} prefix=${key.slice(0, 40)}… suffix=…${key.slice(-8)} len=${key.length} app_id=${ONESIGNAL_APP_ID}`,
   );
 
   try {
