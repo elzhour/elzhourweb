@@ -7,8 +7,11 @@
      fine for a small private team app, do not share publicly). */
 
 export const ONESIGNAL_APP_ID = "f7e4b4ec-e84f-4120-9403-c2ef5861af0d";
-export const ONESIGNAL_REST_API_KEY =
-  "os_v2_app_67slj3hij5asbfadylxvqynpbx5pasyswpber6eouiafuzqxc6phgdoh6jawdrpxkaq3vgjf4iz3poq4duaxhodcmfvryhkngclhhti";
+
+/** URL of the serverless proxy that holds the REST API key and forwards
+ *  the request to OneSignal. Configured via `netlify.toml` redirect to
+ *  `/.netlify/functions/send-push`. */
+const SEND_PUSH_ENDPOINT = "/api/send-push";
 
 declare global {
   interface Window {
@@ -80,54 +83,29 @@ export async function sendRatingPushToPlayer(opts: {
   playerName: string;
   coachName: string;
 }): Promise<{ ok: boolean; reason?: string }> {
-  const title = "🛡️ مركز شباب الزهور - تقييم جديد";
-  const body = `أهلاً ${opts.playerName}، كابتن ${opts.coachName} أضاف تقييمك الجديد. ادخل شوفه دلوقتي!`;
-
-  const payload = {
-    app_id: ONESIGNAL_APP_ID,
-    target_channel: "push",
-    include_aliases: { external_id: [opts.playerId] },
-    headings: { en: title, ar: title },
-    contents: { en: body, ar: body },
-    web_push_topic: "zohour-rating",
-    chrome_web_icon: "/logo.jpg",
-    chrome_web_badge: "/logo.jpg",
-    data: { tag: "zohour-rating" },
-  };
-
   try {
-    const res = await fetch("https://onesignal.com/api/v1/notifications", {
+    const res = await fetch(SEND_PUSH_ENDPOINT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${ONESIGNAL_REST_API_KEY.trim()}`,
-      },
-      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        playerId: opts.playerId,
+        playerName: opts.playerName,
+        coachName: opts.coachName,
+      }),
     });
     const txt = await res.text();
-    console.info("[onesignal] send response:", res.status, txt);
+    console.info("[onesignal] proxy response:", res.status, txt);
     if (!res.ok) {
-      console.error("[onesignal] HTTP error:", res.status, txt);
       return { ok: false, reason: `http-${res.status}: ${txt.slice(0, 200)}` };
     }
     let parsed: any = {};
     try {
       parsed = JSON.parse(txt);
     } catch {}
-    if (parsed?.errors) {
-      console.error("[onesignal] API errors:", parsed.errors);
-      const errMsg = Array.isArray(parsed.errors)
-        ? parsed.errors.join(", ")
-        : JSON.stringify(parsed.errors);
-      return { ok: false, reason: errMsg };
-    }
-    if (parsed?.recipients === 0) {
-      console.warn("[onesignal] no recipients matched external_id:", opts.playerId);
-      return { ok: false, reason: "no-recipients" };
-    }
-    return { ok: true };
+    if (parsed?.ok) return { ok: true };
+    return { ok: false, reason: parsed?.reason || "unknown" };
   } catch (e: any) {
-    console.error("[onesignal] fetch threw:", e);
+    console.error("[onesignal] proxy fetch threw:", e);
     return { ok: false, reason: `network: ${e?.message || String(e)}` };
   }
 }
