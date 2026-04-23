@@ -9,9 +9,9 @@
 export const ONESIGNAL_APP_ID = "f7e4b4ec-e84f-4120-9403-c2ef5861af0d";
 
 /** URL of the serverless proxy that holds the REST API key and forwards
- *  the request to OneSignal. Configured via `netlify.toml` redirect to
- *  `/.netlify/functions/send-push`. */
-const SEND_PUSH_ENDPOINT = "/api/send-push";
+ *  the request to OneSignal. Hits the Netlify function directly to avoid
+ *  any redirect/SPA-rewrite confusion. */
+const SEND_PUSH_ENDPOINT = "/.netlify/functions/send-push";
 
 declare global {
   interface Window {
