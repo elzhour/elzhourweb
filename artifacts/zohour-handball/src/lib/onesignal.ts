@@ -8,7 +8,7 @@
 
 export const ONESIGNAL_APP_ID = "f7e4b4ec-e84f-4120-9403-c2ef5861af0d";
 export const ONESIGNAL_REST_API_KEY =
-  "os_v2_app_67slj3hij5asbfadylxvqynpbubogutak7pukp5c4fjltnawnlhn7djlvllbantet6i6c7aabuvjgcgly4wxavevntdj367mal6akea";
+  "os_v2_app_67slj3hij5asbfadylxvqynpbx5pasyswpber6eouiafuzqxc6phgdoh6jawdrpxkaq3vgjf4iz3poq4duaxhodcmfvryhkngclhhti";
 
 declare global {
   interface Window {
@@ -96,10 +96,7 @@ export async function sendRatingPushToPlayer(opts: {
   };
 
   try {
-    // Use the v2 endpoint (api.onesignal.com) — it has proper CORS support
-    // for browser-side calls, unlike the legacy onesignal.com/api/v1 host
-    // which can fail with "Failed to fetch" due to CORS preflight rejection.
-    const res = await fetch("https://api.onesignal.com/notifications", {
+    const res = await fetch("https://onesignal.com/api/v1/notifications", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
