@@ -4,7 +4,12 @@
 
 const ONESIGNAL_APP_ID =
   process.env.ONESIGNAL_APP_ID || "f7e4b4ec-e84f-4120-9403-c2ef5861af0d";
-const ONESIGNAL_REST_API_KEY = process.env.ONESIGNAL_REST_API_KEY || "";
+// Default REST API key embedded here (server-side only; never reaches the
+// browser). Override with the ONESIGNAL_REST_API_KEY env var on Netlify if
+// the key is rotated.
+const ONESIGNAL_REST_API_KEY =
+  process.env.ONESIGNAL_REST_API_KEY ||
+  "os_v2_app_67slj3hij5asbfadylxvqynpbv2siy3mfy4emsmvrt45etlpfdtcl2va4ln7wzwbkz3en7uqn2a5odoz23ouxicswbuinkxi5ml52ly";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
