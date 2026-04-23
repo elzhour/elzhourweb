@@ -1,37 +1,17 @@
-/* Client-side email sender via EmailJS (free tier, 200 emails/month).
-   The 3 keys below are PUBLIC by EmailJS design — safe to ship in the bundle.
-   Get them after signing up at https://www.emailjs.com:
-     1. Email Services → Add Gmail → copy Service ID
-     2. Email Templates → Create template → copy Template ID
-     3. Account → API Keys → copy Public Key
-   The template MUST contain these variables: {{player_name}}, {{coach_name}},
-   {{app_url}} and use {{to_email}} as the "To Email" field. */
+/* Sends rating notification email via our Netlify Function (which calls Brevo).
+   The Brevo API key lives ONLY in Netlify env vars, never in the browser.
+   Required Netlify env vars:
+     - BREVO_API_KEY
+     - BREVO_SENDER_EMAIL
+     - BREVO_SENDER_NAME (optional)
+     - APP_URL (optional, defaults to https://elzhour1.netlify.app/)
+*/
 
-import emailjs from "@emailjs/browser";
-
-const EMAILJS_SERVICE_ID = "PASTE_SERVICE_ID_HERE";
-const EMAILJS_TEMPLATE_ID = "PASTE_TEMPLATE_ID_HERE";
-const EMAILJS_PUBLIC_KEY = "PASTE_PUBLIC_KEY_HERE";
-
-const APP_URL = "https://elzhour1.netlify.app/";
-
-let initialized = false;
-function ensureInit() {
-  if (initialized) return;
-  if (
-    EMAILJS_PUBLIC_KEY === "PASTE_PUBLIC_KEY_HERE" ||
-    !EMAILJS_PUBLIC_KEY
-  ) return;
-  emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
-  initialized = true;
-}
+const ENDPOINT = "/.netlify/functions/send-rating-email";
 
 export function isEmailConfigured() {
-  return (
-    EMAILJS_SERVICE_ID !== "PASTE_SERVICE_ID_HERE" &&
-    EMAILJS_TEMPLATE_ID !== "PASTE_TEMPLATE_ID_HERE" &&
-    EMAILJS_PUBLIC_KEY !== "PASTE_PUBLIC_KEY_HERE"
-  );
+  // Always true now — configuration lives on the server.
+  return true;
 }
 
 export async function sendRatingEmail(opts: {
@@ -40,23 +20,24 @@ export async function sendRatingEmail(opts: {
   coachName: string;
 }): Promise<{ ok: boolean; reason?: string }> {
   if (!opts.toEmail) return { ok: false, reason: "no-email" };
-  if (!isEmailConfigured()) {
-    console.warn("[email] EmailJS not configured yet — skipping send");
-    return { ok: false, reason: "not-configured" };
-  }
-  ensureInit();
   try {
-    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
-      to_email: opts.toEmail,
-      player_name: opts.playerName,
-      coach_name: opts.coachName,
-      app_url: APP_URL,
-      subject: `تم تقييمك من ${opts.coachName}`,
-      message: `يا ${opts.playerName} تم تقييمك من ${opts.coachName}، شوف تقييمك من هنا: ${APP_URL}`,
+    const res = await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        toEmail: opts.toEmail,
+        playerName: opts.playerName,
+        coachName: opts.coachName,
+      }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.error("[email] send failed:", res.status, data);
+      return { ok: false, reason: data?.error || `http-${res.status}` };
+    }
     return { ok: true };
   } catch (e: any) {
-    console.error("[email] send failed:", e);
-    return { ok: false, reason: e?.text || e?.message || "send-failed" };
+    console.error("[email] send error:", e);
+    return { ok: false, reason: e?.message || "send-failed" };
   }
 }
