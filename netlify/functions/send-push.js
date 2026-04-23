@@ -82,16 +82,28 @@ exports.handler = async (event) => {
   );
 
   try {
-    // V1 endpoint expects "Basic <key>"; V2 endpoint expects "Key <key>".
-    // We use V1 here since the user explicitly asked for the Basic scheme.
-    const res = await fetch("https://onesignal.com/api/v1/notifications", {
+    // For new-format keys (os_v2_app_*) the modern V2 endpoint uses
+    // "Authorization: Key <key>". Try V2 first; if it returns 401/403,
+    // fall back to V1 with "Basic <key>" for older-format keys.
+    let res = await fetch("https://api.onesignal.com/notifications", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Basic ${key}`,
+        Authorization: `Key ${key}`,
       },
       body: JSON.stringify(payload),
     });
+    if (res.status === 401 || res.status === 403) {
+      console.log("[send-push] V2+Key rejected, retrying V1+Basic");
+      res = await fetch("https://onesignal.com/api/v1/notifications", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Basic ${key}`,
+        },
+        body: JSON.stringify(payload),
+      });
+    }
     const txt = await res.text();
     console.log(`[send-push] OneSignal response: ${res.status} ${txt.slice(0, 300)}`);
     let parsed = {};
