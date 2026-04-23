@@ -22,7 +22,7 @@ import {
   CheckCircle2, Edit3, Bell,
 } from "lucide-react";
 import { toast } from "sonner";
-import { sendRatingPushToPlayer } from "@/lib/onesignal";
+import { sendRatingPushToPlayer } from "@/lib/client-push";
 import { BottomTabs } from "@/components/bottom-tabs";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { UserAvatar } from "@/components/user-avatar";

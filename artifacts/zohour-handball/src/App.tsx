@@ -12,17 +12,21 @@ import PlayerSetup from "@/pages/player-setup";
 import CoachAuth from "@/pages/coach-auth";
 import PlayerDashboard from "@/pages/player-dashboard";
 import CoachDashboard from "@/pages/coach-dashboard";
-import { ensureOneSignal } from "@/lib/onesignal";
+import { useNotifications } from "@/lib/notifications";
 import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
 function AppInit() {
+  const { requestPermission } = useNotifications();
+
   useEffect(() => {
-    // Initialize OneSignal early; permission is requested when the
-    // player reaches their dashboard.
-    ensureOneSignal();
-  }, []);
+    // Request after 5 seconds to let user settle
+    const t = setTimeout(() => {
+      requestPermission();
+    }, 5000);
+    return () => clearTimeout(t);
+  }, [requestPermission]);
 
   return null;
 }

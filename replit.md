@@ -9,7 +9,7 @@
 
 - **Frontend**: React 18 + Vite + Tailwind CSS + shadcn/ui
 - **Backend**: Firebase (Firestore, Auth, FCM)
-- **الإشعارات**: Web Push عبر FCM — متصفح المدرب يبعت الـ push مباشرة عبر FCM v1 REST API (بدون Cloud Functions، خطة Spark المجانية)
+- **الإشعارات**: Web Push عبر Firebase Cloud Messaging — متصفح المدرب يبعت الـ push مباشرة عبر FCM v1 REST API بدون Cloud Functions ولا Netlify Functions (خطة Spark/Netlify المجانية بالكامل)
 - **النشر**: Netlify (frontend فقط)
 - **رفع الصور**: Cloudinary
 

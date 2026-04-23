@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { Activity, Dumbbell, Brain, Sparkles, BarChart3, CalendarCheck, List } from "lucide-react";
 import { format } from "date-fns";
-import { registerPlayerForPush } from "@/lib/onesignal";
+import { registerPlayerForPush, setupForegroundListener } from "@/lib/notifications";
 import { BottomTabs } from "@/components/bottom-tabs";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { UserAvatar } from "@/components/user-avatar";
@@ -48,6 +48,7 @@ export default function PlayerDashboard() {
   useEffect(() => {
     if (!user) return;
     registerPlayerForPush(user.uid).catch(() => {});
+    setupForegroundListener();
   }, [user]);
 
   // Listen to the shared session date set by the coach

@@ -7,16 +7,6 @@
   BASE_PATH = "/"
   PORT = "3000"
 
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
-
-[[redirects]]
-  from = "/api/send-push"
-  to = "/.netlify/functions/send-push"
-  status = 200
-  force = true
-
 [[redirects]]
   from = "/*"
   to = "/index.html"

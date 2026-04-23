@@ -1,10 +1,10 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { ensureOneSignal } from "./lib/onesignal";
+import { ensureMessagingSW } from "./lib/notifications";
 
-// Initialize OneSignal as early as possible so background notifications
-// keep arriving even when the app tab is closed.
-ensureOneSignal();
+// Register the FCM service worker as early as possible so background
+// notifications keep arriving even when the app tab is closed.
+ensureMessagingSW();
 
 createRoot(document.getElementById("root")!).render(<App />);
