@@ -9,7 +9,7 @@ const ONESIGNAL_APP_ID =
 // the key is rotated.
 const ONESIGNAL_REST_API_KEY =
   process.env.ONESIGNAL_REST_API_KEY ||
-  "os_v2_app_67slj3hij5asbfadylxvqynpbv2siy3mfy4emsmvrt45etlpfdtcl2va4ln7wzwbkz3en7uqn2a5odoz23ouxicswbuinkxi5ml52ly";
+  "os_v2_app_67slj3hij5asbfadylxvqynpbuy4mf3msysez7m5jvni53wmb6ubh6noewohintwnuz7ve6rcptv2cn2345jykopgepvahcogjljpka";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
