@@ -83,41 +83,51 @@ export async function sendRatingPushToPlayer(opts: {
   const title = "🛡️ مركز شباب الزهور - تقييم جديد";
   const body = `أهلاً ${opts.playerName}، كابتن ${opts.coachName} أضاف تقييمك الجديد. ادخل شوفه دلوقتي!`;
 
+  const payload = {
+    app_id: ONESIGNAL_APP_ID,
+    target_channel: "push",
+    include_aliases: { external_id: [opts.playerId] },
+    headings: { en: title, ar: title },
+    contents: { en: body, ar: body },
+    web_push_topic: "zohour-rating",
+    chrome_web_icon: "/logo.jpg",
+    chrome_web_badge: "/logo.jpg",
+    data: { tag: "zohour-rating" },
+  };
+
   try {
-    const res = await fetch("https://api.onesignal.com/notifications", {
+    const res = await fetch("https://onesignal.com/api/v1/notifications", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        Authorization: `Key ${ONESIGNAL_REST_API_KEY}`,
+        "Content-Type": "application/json",
+        Authorization: `Basic ${ONESIGNAL_REST_API_KEY}`,
       },
-      body: JSON.stringify({
-        app_id: ONESIGNAL_APP_ID,
-        target_channel: "push",
-        include_aliases: { external_id: [opts.playerId] },
-        headings: { en: title, ar: title },
-        contents: { en: body, ar: body },
-        web_push_topic: "zohour-rating",
-        chrome_web_icon: "/logo.jpg",
-        chrome_web_badge: "/logo.jpg",
-        data: { tag: "zohour-rating" },
-      }),
+      body: JSON.stringify(payload),
     });
     const txt = await res.text();
+    console.info("[onesignal] send response:", res.status, txt);
     if (!res.ok) {
-      console.warn("[onesignal] send failed:", res.status, txt);
-      return { ok: false, reason: `http-${res.status}` };
+      console.error("[onesignal] HTTP error:", res.status, txt);
+      return { ok: false, reason: `http-${res.status}: ${txt.slice(0, 200)}` };
     }
     let parsed: any = {};
     try {
       parsed = JSON.parse(txt);
     } catch {}
     if (parsed?.errors) {
-      console.warn("[onesignal] send errors:", parsed.errors);
+      console.error("[onesignal] API errors:", parsed.errors);
+      const errMsg = Array.isArray(parsed.errors)
+        ? parsed.errors.join(", ")
+        : JSON.stringify(parsed.errors);
+      return { ok: false, reason: errMsg };
+    }
+    if (parsed?.recipients === 0) {
+      console.warn("[onesignal] no recipients matched external_id:", opts.playerId);
       return { ok: false, reason: "no-recipients" };
     }
     return { ok: true };
   } catch (e: any) {
-    console.warn("[onesignal] send error:", e);
-    return { ok: false, reason: "network" };
+    console.error("[onesignal] fetch threw:", e);
+    return { ok: false, reason: `network: ${e?.message || String(e)}` };
   }
 }
