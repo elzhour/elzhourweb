@@ -1,0 +1,129 @@
+{
+  "colorScheme": "dark",
+  "fonts": [
+    {
+      "family": "Cairo",
+      "role": "body"
+    }
+  ],
+  "colors": {
+    "primary": "#479EF5",
+    "secondary": "#0F1524",
+    "accent": "#479EF5",
+    "background": "#0A0F1A",
+    "textPrimary": "#0A0F1A",
+    "link": "#0A0F1A"
+  },
+  "typography": {
+    "fontFamilies": {
+      "primary": "Cairo",
+      "heading": "Cairo"
+    },
+    "fontStacks": {
+      "heading": [
+        "Cairo",
+        "sans-serif"
+      ],
+      "body": [
+        "Cairo",
+        "sans-serif"
+      ],
+      "paragraph": [
+        "Cairo",
+        "sans-serif"
+      ]
+    },
+    "fontSizes": {
+      "h1": "20px",
+      "h2": "20px",
+      "body": "12px"
+    }
+  },
+  "spacing": {
+    "baseUnit": 8,
+    "borderRadius": "4px"
+  },
+  "components": {
+    "input": {
+      "background": "#0A0F1A",
+      "textColor": "#F2F4F8",
+      "borderColor": "#1D2535",
+      "borderRadius": "18px",
+      "borderRadiusCorners": {
+        "topLeft": "18px",
+        "topRight": "18px",
+        "bottomRight": "18px",
+        "bottomLeft": "18px"
+      },
+      "shadow": "rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0) 0px 0px 0px 0px, rgba(0, 0, 0, 0.1) 0px 1px 3px 0px, rgba(0, 0, 0, 0.1) 0px 1px 2px -1px"
+    },
+    "buttonPrimary": {
+      "background": "#479EF5",
+      "textColor": "#0A0F1A",
+      "borderColor": "#1D2535",
+      "borderRadius": "18px",
+      "borderRadiusCorners": {
+        "topLeft": "18px",
+        "topRight": "18px",
+        "bottomRight": "18px",
+        "bottomLeft": "18px"
+      },
+      "shadow": "none"
+    }
+  },
+  "images": {
+    "logo": "https://elzhour1.netlify.app/logo.jpg",
+    "favicon": "https://elzhour1.netlify.app/logo.jpg",
+    "ogImage": null,
+    "logoAlt": "مركز شباب الزهور"
+  },
+  "__llm_logo_reasoning": {
+    "selectedIndex": 0,
+    "reasoning": "Selected #0 because it is visible, located in the header, matches the favicon, and the alt text matches the brand name 'مركز شباب الزهور'.",
+    "confidence": 0.95,
+    "source": "llm"
+  },
+  "__llm_button_reasoning": {
+    "primary": {
+      "index": 0,
+      "text": "دخول",
+      "reasoning": "The button with text 'دخول' has a vibrant blue background (#479EF5), which is the primary brand color, making it the main call-to-action."
+    },
+    "secondary": {
+      "index": -1,
+      "text": "N/A",
+      "reasoning": "There is only one button detected, so no secondary button is available with a different background color."
+    },
+    "confidence": 0.9
+  },
+  "personality": {
+    "tone": "professional",
+    "energy": "medium",
+    "targetAudience": "youth sports enthusiasts"
+  },
+  "designSystem": {
+    "framework": "tailwind",
+    "componentLibrary": ""
+  },
+  "confidence": {
+    "buttons": 0.9,
+    "colors": 0.9,
+    "overall": 0.9
+  },
+  "__llm_metadata": {
+    "logoSelection": {
+      "llmCalled": true,
+      "llmSucceeded": true,
+      "finalSource": "llm",
+      "rawLogoSelection": {
+        "selectedLogoIndex": 0,
+        "selectedLogoReasoning": "Selected #0 because it is visible, located in the header, matches the favicon, and the alt text matches the brand name 'مركز شباب الزهور'.",
+        "confidence": 0.95
+      }
+    },
+    "buttonClassification": {
+      "llmCalled": true,
+      "llmSucceeded": true
+    }
+  }
+}

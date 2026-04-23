@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   collection, query, where, onSnapshot, FirestoreError,
-  doc, updateDoc,
+  doc, updateDoc, setDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth";
@@ -14,7 +14,6 @@ import {
 } from "recharts";
 import { Activity, Dumbbell, Brain, Sparkles, BarChart3, CalendarCheck, List } from "lucide-react";
 import { format } from "date-fns";
-import { registerPlayerForPush, setupForegroundListener } from "@/lib/notifications";
 import { BottomTabs } from "@/components/bottom-tabs";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { UserAvatar } from "@/components/user-avatar";
@@ -44,11 +43,15 @@ export default function PlayerDashboard() {
   const [sessionAttendance, setSessionAttendance] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState<ActiveTab>("ratings");
 
-  // Register for FCM push as soon as we have a logged-in player.
+  // Backfill the player's email into Firestore so the coach can email them
+  // when a rating is saved (one-time per login).
   useEffect(() => {
-    if (!user) return;
-    registerPlayerForPush(user.uid).catch(() => {});
-    setupForegroundListener();
+    if (!user?.email) return;
+    setDoc(
+      doc(db, "players", user.uid),
+      { email: user.email },
+      { merge: true },
+    ).catch(() => {});
   }, [user]);
 
   // Listen to the shared session date set by the coach

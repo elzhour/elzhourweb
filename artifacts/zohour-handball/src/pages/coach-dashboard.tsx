@@ -19,10 +19,10 @@ import { format } from "date-fns";
 import {
   Users, ChevronDown, ChevronUp, Activity, Dumbbell, Brain, Sparkles,
   ClipboardList, CalendarCheck, List, Save, Pencil, Check, X,
-  CheckCircle2, Edit3, Bell,
+  CheckCircle2, Edit3,
 } from "lucide-react";
 import { toast } from "sonner";
-import { sendRatingPushToPlayer } from "@/lib/client-push";
+import { sendRatingEmail } from "@/lib/email";
 import { BottomTabs } from "@/components/bottom-tabs";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { UserAvatar } from "@/components/user-avatar";
@@ -65,28 +65,6 @@ export default function CoachDashboard() {
   const [editingDate, setEditingDate] = useState(false);
   const [tempDate, setTempDate] = useState(sessionDate);
   const [attendanceSaving, setAttendanceSaving] = useState<string | null>(null);
-  const [testingId, setTestingId] = useState<string | null>(null);
-
-  const sendTestPush = async (player: any) => {
-    setTestingId(player.id);
-    try {
-      const res = await sendRatingPushToPlayer({
-        playerId: player.id,
-        playerName: player.firstName || "لاعب",
-        coachName: profile?.name || "تجربة",
-      });
-      if (res.ok) {
-        toast.success(`تم إرسال إشعار تجربة لـ ${player.firstName}`);
-      } else {
-        toast.error("فشل إرسال الإشعار", { description: res.reason });
-      }
-    } catch (e: any) {
-      toast.error("خطأ", { description: e?.message });
-    } finally {
-      setTestingId(null);
-    }
-  };
-
 
   // Sync session date from Firestore
   useEffect(() => {
@@ -223,12 +201,22 @@ export default function CoachDashboard() {
       } else {
         await addDoc(collection(db, "ratings"), { ...payload, createdAt: serverTimestamp() });
         toast.success("تم حفظ التقييم");
-        // Fire FCM push from the client (no Cloud Function needed).
-        sendRatingPushToPlayer({
-          playerId,
-          playerName,
-          coachName: profile?.name || "المدرب",
-        }).catch((e) => console.warn("Push send error:", e));
+        // Fire email to the player (EmailJS, no backend).
+        const player = players.find((p) => p.id === playerId);
+        const toEmail = player?.email;
+        if (toEmail) {
+          sendRatingEmail({
+            toEmail,
+            playerName: player?.firstName || playerName,
+            coachName: profile?.name || "المدرب",
+          })
+            .then((r) => {
+              if (r.ok) toast.success("تم إرسال إيميل للاعب");
+              else if (r.reason !== "not-configured")
+                toast.warning("تعذّر إرسال الإيميل", { description: r.reason });
+            })
+            .catch((e) => console.warn("Email send error:", e));
+        }
       }
       setExpandedEval(null);
       setEditMode((p) => { const s = new Set(p); s.delete(playerId); return s; });
@@ -353,16 +341,8 @@ export default function CoachDashboard() {
                         <div className="font-extrabold text-sm truncate">{player.firstName} {player.fatherName}</div>
                         <div className="text-[10px] text-muted-foreground">متوسط: {avg.t}/10</div>
                       </div>
-                      {/* Attendance + test buttons */}
+                      {/* Attendance buttons */}
                       <div className="flex gap-1 shrink-0">
-                        <button
-                          onClick={() => sendTestPush(player)}
-                          disabled={testingId === player.id}
-                          title="إرسال إشعار تجربة"
-                          className="flex items-center justify-center w-8 h-8 rounded-xl bg-muted text-muted-foreground hover:bg-primary/15 hover:text-primary transition-all disabled:opacity-50"
-                        >
-                          <Bell className="w-3.5 h-3.5" />
-                        </button>
                         <button onClick={() => markAttendance(player, "present")} disabled={isLoading}
                           className={`flex items-center gap-1 px-2 py-1.5 rounded-xl text-[11px] font-bold transition-all ${attStatus === "present" ? "bg-green-500 text-white shadow-sm" : "bg-muted text-muted-foreground hover:bg-green-100 dark:hover:bg-green-900/20 hover:text-green-700"}`}>
                           <Check className="w-3 h-3" />حاضر

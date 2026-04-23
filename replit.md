@@ -8,8 +8,8 @@
 ## المكدس التقني
 
 - **Frontend**: React 18 + Vite + Tailwind CSS + shadcn/ui
-- **Backend**: Firebase (Firestore, Auth, FCM)
-- **الإشعارات**: Web Push عبر Firebase Cloud Messaging — متصفح المدرب يبعت الـ push مباشرة عبر FCM v1 REST API بدون Cloud Functions ولا Netlify Functions (خطة Spark/Netlify المجانية بالكامل)
+- **Backend**: Firebase (Firestore, Auth)
+- **الإشعارات**: إيميل عبر EmailJS — لما المدرب يحفظ تقييم، الفرونت بيبعت إيميل من جيميل المدرب مباشرة عبر EmailJS REST API (خطة مجانية: 200 إيميل/شهر، بدون فيزا، بدون باك إند). المفاتيح في `src/lib/email.ts`. ايميل اللاعب بيتسجل تلقائيًا في `players/{uid}.email` لما يدخل البورتل.
 - **النشر**: Netlify (frontend فقط)
 - **رفع الصور**: Cloudinary
 

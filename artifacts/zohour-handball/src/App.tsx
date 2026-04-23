@@ -12,24 +12,8 @@ import PlayerSetup from "@/pages/player-setup";
 import CoachAuth from "@/pages/coach-auth";
 import PlayerDashboard from "@/pages/player-dashboard";
 import CoachDashboard from "@/pages/coach-dashboard";
-import { useNotifications } from "@/lib/notifications";
-import { useEffect } from "react";
 
 const queryClient = new QueryClient();
-
-function AppInit() {
-  const { requestPermission } = useNotifications();
-
-  useEffect(() => {
-    // Request after 5 seconds to let user settle
-    const t = setTimeout(() => {
-      requestPermission();
-    }, 5000);
-    return () => clearTimeout(t);
-  }, [requestPermission]);
-
-  return null;
-}
 
 function Router() {
   return (
@@ -52,7 +36,6 @@ function App() {
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <AuthProvider>
-              <AppInit />
               <Router />
             </AuthProvider>
           </WouterRouter>

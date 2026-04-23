@@ -68,6 +68,7 @@ export default function PlayerSetup() {
         phone: data.phone,
         dob,
         photoURL,
+        email: user.email || null,
         createdAt: serverTimestamp(),
       });
 
