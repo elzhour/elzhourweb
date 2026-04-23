@@ -71,16 +71,24 @@ exports.handler = async (event) => {
     data: { tag: "zohour-rating" },
   };
 
+  const key = ONESIGNAL_REST_API_KEY.trim();
+  console.log(
+    `[send-push] using key prefix=${key.slice(0, 12)}… len=${key.length}, app_id=${ONESIGNAL_APP_ID}`,
+  );
+
   try {
-    const res = await fetch("https://api.onesignal.com/notifications", {
+    // V1 endpoint expects "Basic <key>"; V2 endpoint expects "Key <key>".
+    // We use V1 here since the user explicitly asked for the Basic scheme.
+    const res = await fetch("https://onesignal.com/api/v1/notifications", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Basic ${ONESIGNAL_REST_API_KEY.trim()}`,
+        Authorization: `Basic ${key}`,
       },
       body: JSON.stringify(payload),
     });
     const txt = await res.text();
+    console.log(`[send-push] OneSignal response: ${res.status} ${txt.slice(0, 300)}`);
     let parsed = {};
     try {
       parsed = JSON.parse(txt);
