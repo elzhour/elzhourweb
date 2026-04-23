@@ -8,7 +8,7 @@
 
 export const ONESIGNAL_APP_ID = "f7e4b4ec-e84f-4120-9403-c2ef5861af0d";
 export const ONESIGNAL_REST_API_KEY =
-  "os_v2_app_67slj3hij5asbfadylxvqynpbvafd7k3vchejxnbjbjnct6kj7rvfnpgemo5fqr24dnxgblmyq6m4wp5ymltataybsj576nwxr7ivfa";
+  "os_v2_app_67slj3hij5asbfadylxvqynpbxz3l77qnppumj44be5xkimxo273xso2moe23pqjugbzs4uxma37bjbor76vj5lyfiubvrdomcz435a";
 
 declare global {
   interface Window {
